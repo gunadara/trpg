@@ -28,6 +28,12 @@ jobs:
       - name: Copy web assets to Android (Capacitor)
         run: npx cap copy android
 
+      - name: Ensure Cordova variables file exists
+        run: |
+          mkdir -p android/capacitor-cordova-android-plugins
+          touch android/capacitor-cordova-android-plugins/cordova.variables.gradle
+
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
