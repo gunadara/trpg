@@ -1,0 +1,12 @@
+/* Tailwind v4 메인 엔트리 */
+@import "tailwindcss";
+
+/* 선택: 기본 바디 스타일 */
+html, body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}

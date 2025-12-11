@@ -1,0 +1,40 @@
+node_modules
+
+# Output
+.output
+.vercel
+.netlify
+.wrangler
+/.svelte-kit
+/build
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+# ── Capacitor / Android build outputs ─────────────────────────────
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+
+# ── iOS (나중에 만들 수도 있으니까 미리) ───────────────────────
+ios/App/build/
+ios/App/Pods/
+ios/App/*.xcworkspace
+ios/App/*xcuserdata/
+
+# ── IDE / 기타 ────────────────────────────────────────────────
+.vscode/
+.idea/
+*.log

@@ -1,0 +1,5 @@
+package com.sia.genesis;
+
+import com.getcapacitor.BridgeActivity;
+
+public class MainActivity extends BridgeActivity {}
