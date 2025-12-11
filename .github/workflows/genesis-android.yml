@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-             node-version: "22"
+          node-version: "22"
 
       - name: Install dependencies
         run: npm ci
@@ -36,8 +36,6 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      # 👉 그냥 써서 깔아쓸 APK면 debug도 충분.
-      # 나중에 제대로 서명된 release 원하면 assembleRelease로 바꾸고 서명 세팅 추가하자!
       - name: Build debug APK
         working-directory: android
         run: ./gradlew assembleDebug
