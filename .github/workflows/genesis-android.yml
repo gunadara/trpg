@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'genesis-*'
+
+
+permissions:
+  contents: write    # 👉 Release 만들 수 있게 컨텐츠 쓰기 권한 줌
+
+
 jobs:
   build-android:
     runs-on: ubuntu-latest
