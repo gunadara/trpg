@@ -3,8 +3,7 @@ name: GENESIS Android APK
 on:
   push:
     tags:
-      - 'genesis-*'   # genesis- 로 시작하는 태그에서만 실행
-
+      - 'genesis-*'
 jobs:
   build-android:
     runs-on: ubuntu-latest
@@ -16,7 +15,7 @@ jobs:
       - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
-          node-version: '22'   # ⚠ 여기 반드시 22
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -38,7 +37,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
