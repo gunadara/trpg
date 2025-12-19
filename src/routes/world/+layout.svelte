@@ -54,28 +54,19 @@
     navOpen = false;
   }
 
-  // 현재 선택된 세계 객체 (모바일 헤더/사이드바에서 사용)
-  $: activeWorld =
-    $worlds.find((w) => w.id === $currentWorldId) ?? $worlds[0];
+  // 현재 선택된 세계
+  $: activeWorld = $worlds.find((w) => w.id === $currentWorldId) ?? $worlds[0];
 
-  // 새 세계 만들기 + 바로 이름 짓기
   function handleCreateWorld() {
-    const w = createWorld(); // currentWorldId도 이걸로 바뀜
-
+    const w = createWorld();
     const name = window.prompt('새 세계 이름을 정해 주세요', w.name);
-    if (name && name.trim()) {
-      renameWorld(w.id, name.trim());
-    }
+    if (name && name.trim()) renameWorld(w.id, name.trim());
   }
 
-  // 선택된 세계 이름 변경
   function handleRenameWorld() {
     if (!activeWorld) return;
-
     const next = window.prompt('세계 이름을 수정하세요', activeWorld.name);
-    if (next && next.trim()) {
-      renameWorld(activeWorld.id, next.trim());
-    }
+    if (next && next.trim()) renameWorld(activeWorld.id, next.trim());
   }
 </script>
 
@@ -87,25 +78,70 @@
            border-b border-slate-200 dark:border-slate-800
            bg-white/80 dark:bg-slate-900/80 backdrop-blur"
   >
-    <button
-      type="button"
-      class="p-2 rounded-lg border border-slate-200 dark:border-slate-700
-             bg-slate-50 dark:bg-slate-900/60
-             active:scale-95 transition"
-      on:click={() => (navOpen = !navOpen)}
-    >
-      <!-- 햄버거 아이콘 -->
-      <span class="block w-4 h-[2px] bg-slate-600 dark:bg-slate-200 mb-1 rounded"></span>
-      <span class="block w-4 h-[2px] bg-slate-600 dark:bg-slate-200 mb-1 rounded"></span>
-      <span class="block w-4 h-[2px] bg-slate-600 dark:bg-slate-200 rounded"></span>
-    </button>
-
   <div class="flex flex-col items-end text-xs">
     <span class="font-semibold">세계관 문서</span>
     {#if activeWorld}
       <span class="text-[10px] text-slate-400 dark:text-slate-500">
         현재 세계: {activeWorld.emoji} {activeWorld.name}
       </span>
+    {/if}
+  </div>
+
+  <!-- ✅ 오른쪽 컨트롤 줄 -->
+  <div class="flex items-center gap-2">
+    <!-- 세계 선택 -->
+    <select
+      class="rounded-lg border border-slate-200 dark:border-slate-700
+             bg-white/80 dark:bg-slate-900/60 px-2 py-1 text-[11px] outline-none
+             focus:ring-1 focus:ring-indigo-500/60 focus:border-indigo-500
+             text-slate-700 dark:text-slate-100"
+      bind:value={$currentWorldId}
+    >
+      {#each $worlds as w}
+        <option value={w.id}>{w.emoji} {w.name}</option>
+      {/each}
+    </select>
+
+    <!-- 이름 수정 -->
+    <button
+      type="button"
+      class="px-2.5 py-1 rounded-lg text-[11px]
+             border border-slate-200 dark:border-slate-700
+             bg-white/70 dark:bg-slate-900/60
+             text-slate-600 hover:text-slate-800 hover:bg-slate-50
+             dark:text-slate-200 dark:hover:bg-slate-800
+             transition"
+      on:click={handleRenameWorld}
+    >
+      이름
+    </button>
+
+    <!-- 새 세계 -->
+    <button
+      type="button"
+      class="px-2.5 py-1 rounded-lg text-[11px] font-medium
+             bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700
+             transition"
+      on:click={handleCreateWorld}
+    >
+      ＋ 새 세계
+    </button>
+
+    <!-- 디버그(DEV에서만) -->
+    {#if import.meta.env.DEV}
+      <button
+        type="button"
+        class="px-2.5 py-1 rounded-lg text-[11px]
+               border border-slate-200 dark:border-slate-700
+               bg-white/70 dark:bg-slate-900/60
+               hover:bg-slate-50 dark:hover:bg-slate-800
+               transition"
+        on:click={() => goto('/debug')}
+        aria-label="디버그"
+        title="디버그"
+      >
+        🛠️
+      </button>
     {/if}
   </div>
 </header>
@@ -190,6 +226,20 @@
               </button>
             </li>
           {/each}
+        <!-- ✅ 디버그 버튼: Drawer 안에 -->
+        <li class="pt-2 mt-2 border-t border-slate-200 dark:border-slate-800">
+          <button
+            type="button"
+            class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs
+                   text-left transition
+                   text-slate-600 hover:bg-slate-50
+                   dark:text-slate-300 dark:hover:bg-slate-900/50"
+            on:click={() => { goto('/debug'); navOpen = false; }}
+          >
+            <span class="text-base">🛠️</span>
+            <span class="font-medium">디버그</span>
+          </button>
+        </li>
         </ul>
       </nav>
     </aside>

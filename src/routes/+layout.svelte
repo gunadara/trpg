@@ -1,9 +1,15 @@
 <!-- src/routes/+layout.svelte -->
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { page } from '$app/stores'; // ✅ (1) 이거 추가
+
   import '../app.css';
   import favicon from '$lib/assets/favicon.svg';
   import { initWorldDatabase } from '$lib/services/sqlite';
+
+  import type { CategoryId } from '$lib/domain/categories';
+  import { CATEGORY_META } from '$lib/domain/categories';
+  import { CATEGORY_ROUTE } from '$lib/services/worldNav';
 
   type NavItem = {
     icon: string;
@@ -12,55 +18,45 @@
   };
 
   const navItems: NavItem[] = [
-    {
-      icon: '🌏',
-      label: '세계관 관리',
-      href: '/world'   // 세계관 허브 페이지
-    }
+    { icon: '🌏', label: '세계관 관리', href: '/world' }
   ];
 
+  const WORLD_ITEMS: NavItem[] = ([
+    'characters',
+    'races',
+    'groups',
+    'nations',
+    'locations',
+    'events',
+    'storylines'
+  ] as CategoryId[]).map((id) => ({
+    icon: CATEGORY_META[id].icon,
+    label: CATEGORY_META[id].label,
+    href: CATEGORY_ROUTE[id]
+  }));
+
+  // ✅ (2) 현재 경로가 /world 아래인지 판별 (이거 추가)
+  $: inWorld = $page.url.pathname.startsWith('/world');
+
   let drawerOpen = false;
+  const toggleDrawer = () => (drawerOpen = !drawerOpen);
+  const closeDrawer = () => (drawerOpen = false);
 
-  const toggleDrawer = () => {
-    drawerOpen = !drawerOpen;
-  };
-
-  const closeDrawer = () => {
-    drawerOpen = false;
-  };
-
-  // 시스템 다크 모드 자동 반영 + SQLite 초기화
   onMount(() => {
-    console.log('[LAYOUT] onMount called');   // 🔹 디버그용 로그
-
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
-
     const apply = (isDark: boolean) => {
-      const root = document.documentElement;
-      root.classList.toggle('dark', isDark);
+      document.documentElement.classList.toggle('dark', isDark);
     };
-
     apply(mq.matches);
 
-    const handler = (event: MediaQueryListEvent) => {
-      apply(event.matches);
-    };
-
+    const handler = (event: MediaQueryListEvent) => apply(event.matches);
     mq.addEventListener('change', handler);
 
-    // 🔹 여기서 SQLite world_docs 테이블 준비
-    initWorldDatabase()
-      .then(() => {
-        console.log('[SQLite] GENESIS world DB initialized');
-      })
-      .catch((err) => {
-        console.error('[SQLite] init error', err);
-      });
-
+    initWorldDatabase().catch((err) => console.error('[SQLite] init error', err));
     return () => mq.removeEventListener('change', handler);
   });
-
 </script>
+
 
 <svelte:head>
   <link rel="icon" href={favicon} />
@@ -137,15 +133,34 @@
               ✕
             </button>
           </div>
+        <nav class="py-3 overflow-y-auto">
+          <ul class="space-y-1">
+            {#each navItems as item}
+              <li>
+                <a
+                  href={item.href}
+                  class="flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl hover:bg-indigo-100 hover:text-indigo-700
+                        dark:hover:bg-indigo-500/10 dark:hover:text-indigo-200 transition-colors"
+                  on:click={closeDrawer}
+                >
+                  <span class="text-lg">{item.icon}</span>
+                  <span>{item.label}</span>
+                </a>
+              </li>
+            {/each}
 
-          <nav class="py-3 overflow-y-auto">
-            <ul class="space-y-1">
-              {#each navItems as item}
+            {#if inWorld}
+              <!-- 구분선 -->
+              <li class="pt-2 mt-2 border-t border-slate-200 dark:border-slate-800"></li>
+
+              <!-- ✅ /world일 때만 카테고리 7개 -->
+              {#each WORLD_ITEMS as item}
                 <li>
                   <a
                     href={item.href}
-                    class="flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl hover:bg-indigo-100 hover:text-indigo-700
-                           dark:hover:bg-indigo-500/10 dark:hover:text-indigo-200 transition-colors"
+                    class="flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl
+                          hover:bg-indigo-100 hover:text-indigo-700
+                          dark:hover:bg-indigo-500/10 dark:hover:text-indigo-200 transition-colors"
                     on:click={closeDrawer}
                   >
                     <span class="text-lg">{item.icon}</span>
@@ -153,8 +168,9 @@
                   </a>
                 </li>
               {/each}
-            </ul>
-          </nav>
+            {/if}
+          </ul>
+        </nav>
         </div>
       <button
         type="button"
