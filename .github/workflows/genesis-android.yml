@@ -1,56 +1,89 @@
-name: GENESIS Android APK
+name: GENESIS Android APK Build & Release
 
 on:
   push:
-    tags:
-      - 'genesis-*'
+    branches: ["main"]
+    tags: ["v*"]      # v0.3.1 같은 태그를 푸시하면 이 빌드가 작동합니다.
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:   # 버튼 눌러서 수동 빌드도 가능하게 함
+
+# 중복 빌드 방지
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
-  contents: write 
+  contents: write    # Release를 생성하고 파일을 올리려면 반드시 write여야 합니다.
+
 jobs:
-  build-android:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout Source
         uses: actions/checkout@v4
 
-      - name: Setup Node 22
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: npm ci
 
-      - name: Build SvelteKit app
+      - name: Build SvelteKit App
         run: npm run build
 
-      - name: Copy web assets to Android (Capacitor)
-        run: npx cap copy android
-
+      # 첫 번째 코드에 있던 안정성 보정 로직 (Capacitor 빌드 에러 방지)
       - name: Ensure Cordova variables file exists
         run: |
           mkdir -p android/capacitor-cordova-android-plugins
           touch android/capacitor-cordova-android-plugins/cordova.variables.gradle
 
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '21'
+          distribution: "zulu"
+          java-version: "21"
 
-      - name: Make gradlew executable
-        run: chmod +x android/gradlew
+      # 두 번째 코드에 있던 속도 향상 로직 (Gradle 캐싱)
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
-      - name: Build debug APK
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Sync Capacitor (Android)
+        run: npx cap sync android
+
+      - name: Build Android APK (Debug)
         working-directory: android
-        run: ./gradlew assembleDebug
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug
 
-      - name: Upload APK to GitHub Release
+      # 1. 모든 빌드 결과를 Actions 탭에 임시 저장 (Artifact)
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesis-app-${{ github.ref_name }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      # 2. 태그(v*)가 올라왔을 때만 GitHub Release에 정식 등록
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: android/app/build/outputs/apk/debug/app-debug.apk
+          name: Release ${{ github.ref_name }}
+          body: |
+            GENESIS 자동 빌드 시스템에서 생성된 APK입니다.
+            - 버전: ${{ github.ref_name }}
+            - 빌드 시각: ${{ github.event.head_commit.timestamp }}
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
