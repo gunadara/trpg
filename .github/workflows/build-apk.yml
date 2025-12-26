@@ -38,7 +38,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: "zulu"
-          java-version: "17"
+          java-version: "21"
 
       # Gradle 캐시(빌드 속도/안정성에 도움)
       - name: Setup Gradle
