@@ -23,6 +23,25 @@ type SQLiteDeps = {
   sqlite: any; // SQLiteConnection 인스턴스
 };
 
+function toJsonOrNull(v: unknown): string | null {
+  if (v === undefined) return null;
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return null;
+  }
+}
+
+function fromJsonOrUndefined<T = any>(v: unknown): T | undefined {
+  if (!v) return undefined;
+  try {
+    return JSON.parse(String(v)) as T;
+  } catch {
+    return undefined;
+  }
+}
+
+
 async function loadSQLiteDeps(): Promise<SQLiteDeps | null> {
   if (!browser) return null;
 
@@ -106,6 +125,7 @@ export async function initWorldDatabase(): Promise<void> {
           content TEXT NOT NULL,
           thumbnailPath TEXT,
           mentions TEXT,
+          attributes TEXT,
           createdAt TEXT NOT NULL,
           updatedAt TEXT NOT NULL
         );
@@ -114,6 +134,14 @@ export async function initWorldDatabase(): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_world_docs_world_category
           ON world_docs(worldId, category);
       `);
+
+      // ✅ 기존 설치 DB에 attributes 컬럼이 없을 수 있으니 보정 (Phase 2 migration)
+      try {
+        await dbConn.execute(`ALTER TABLE world_docs ADD COLUMN attributes TEXT;`);
+        console.info('[SQLite] migrated: added world_docs.attributes');
+      } catch (e) {
+        console.info('[SQLite] migration skipped (attributes already exists)');
+      }
 
       db = dbConn;
       mode = 'sqlite';
@@ -140,8 +168,6 @@ export async function initWorldDatabase(): Promise<void> {
 export function getSQLiteMode(): 'sqlite' | 'stub' {
   return mode;
 }
-
-
 
 // ────────────────────────────────────────────────
 // 현재 world 의 모든 문서를 SQLite 에 저장
@@ -181,6 +207,7 @@ export async function saveWorldDocsToSQLite(
 
       const createdAt = doc.createdAt ?? new Date().toISOString();
       const updatedAt = doc.updatedAt ?? createdAt;
+      const attributesJson = toJsonOrNull(doc.attributes);
 
       await dbConn.run(
         `
@@ -193,9 +220,10 @@ export async function saveWorldDocsToSQLite(
           content,
           thumbnailPath,
           mentions,
+          attributes,
           createdAt,
           updatedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
       `,
         [
           doc.id,
@@ -206,6 +234,7 @@ export async function saveWorldDocsToSQLite(
           doc.content ?? '',
           doc.thumbnailPath ?? null,
           mentionsJson,
+          attributesJson,
           createdAt,
           updatedAt
         ]
@@ -255,6 +284,7 @@ export async function loadWorldDocsFromSQLite(
         content,
         thumbnailPath,
         mentions,
+        attributes,
         createdAt,
         updatedAt
       FROM world_docs
@@ -276,7 +306,8 @@ export async function loadWorldDocsFromSQLite(
       thumbnailPath: row.thumbnailPath ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
-      mentions: row.mentions ? JSON.parse(row.mentions) : undefined
+      mentions: row.mentions ? JSON.parse(row.mentions) : undefined,
+      attributes: fromJsonOrUndefined(row.attributes)
     })) as WorldDoc[];
   } catch (err) {
     console.error('[SQLite] loadWorldDocsFromSQLite 실패', err);

@@ -3,7 +3,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import type { CategoryId } from '$lib/domain/categories';
-  import { CATEGORY_META } from '$lib/domain/categories';
+  import { CATEGORY_META, WORLD_CATEGORY_IDS } from '$lib/domain/categories';
   import { CATEGORY_ROUTE } from '$lib/services/worldNav';
 
   import {
@@ -28,16 +28,8 @@
     label: string;
   };
 
-  // 월드 내비 메뉴 7개
-  const NAV_ITEMS: NavItem[] = ([
-    'characters',
-    'races',
-    'groups',
-    'nations',
-    'locations',
-    'events',
-    'storylines'
-  ] as CategoryId[]).map((id) => ({
+  // 월드 내비 메뉴 (공용 목록 기반)
+  const NAV_ITEMS: NavItem[] = WORLD_CATEGORY_IDS.map((id) => ({
     id,
     href: CATEGORY_ROUTE[id],
     icon: CATEGORY_META[id].icon,
@@ -73,18 +65,32 @@
 <!-- 전체 월드 영역을 감싸는 AppShell -->
 <div class="min-h-full flex flex-col bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-50">
   <!-- 🔹 모바일 상단 앱바 (md 미만에서만 보임) -->
-  <header
-    class="md:hidden flex items-center justify-between px-3 py-2
-           border-b border-slate-200 dark:border-slate-800
-           bg-white/80 dark:bg-slate-900/80 backdrop-blur"
-  >
-  <div class="flex flex-col items-end text-xs">
-    <span class="font-semibold">세계관 문서</span>
-    {#if activeWorld}
-      <span class="text-[10px] text-slate-400 dark:text-slate-500">
-        현재 세계: {activeWorld.emoji} {activeWorld.name}
-      </span>
-    {/if}
+<header
+  class="md:hidden flex items-center justify-between px-3 py-2
+         border-b border-slate-200 dark:border-slate-800
+         bg-white/80 dark:bg-slate-900/80 backdrop-blur"
+>
+  <!-- ✅ 왼쪽: 햄버거 + 타이틀 -->
+  <div class="flex items-center gap-2 min-w-0">
+    <button
+      type="button"
+      class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+      on:click={() => (navOpen = true)}
+      aria-label="카테고리 메뉴 열기"
+    >
+      <div class="w-5 h-[2px] bg-slate-800 dark:bg-slate-100 mb-1"></div>
+      <div class="w-4 h-[2px] bg-slate-800 dark:bg-slate-100 mb-1"></div>
+      <div class="w-6 h-[2px] bg-slate-800 dark:bg-slate-100"></div>
+    </button>
+
+    <div class="flex flex-col min-w-0 text-xs">
+      <span class="font-semibold truncate">세계관 문서</span>
+      {#if activeWorld}
+        <span class="text-[10px] text-slate-400 dark:text-slate-500 truncate">
+          현재 세계: {activeWorld.emoji} {activeWorld.name}
+        </span>
+      {/if}
+    </div>
   </div>
 
   <!-- ✅ 오른쪽 컨트롤 줄 -->
@@ -252,12 +258,13 @@
 
   <!-- 🔹 모바일용 Drawer (navOpen일 때만) -->
   {#if navOpen}
-    <!-- 배경 오버레이 -->
-    <div
-      class="fixed inset-0 z-40 bg-black/40"
-      on:click={() => (navOpen = false)}
-    ></div>
-
+  <!-- 배경 오버레이 -->
+  <button
+    type="button"
+    class="fixed inset-0 z-40 bg-black/40"
+    on:click={() => (navOpen = false)}
+    aria-label="메뉴 닫기 오버레이"
+  ></button>
     <!-- 왼쪽에서 슬라이드되는 메뉴 -->
     <aside
       class="fixed inset-y-0 left-0 z-50 w-64 max-w-full
@@ -302,6 +309,21 @@
             </li>
           {/each}
         </ul>
+        {#if import.meta.env.DEV}
+          <li class="pt-2 mt-2 border-t border-slate-200 dark:border-slate-800">
+            <button
+              type="button"
+              class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs
+                    text-left transition
+                    text-slate-600 hover:bg-slate-50
+                    dark:text-slate-300 dark:hover:bg-slate-900/50"
+              on:click={() => { goto('/debug'); navOpen = false; }}
+            >
+              <span class="text-base">🛠️</span>
+              <span class="font-medium">디버그</span>
+            </button>
+          </li>
+        {/if}
       </nav>
     </aside>
   {/if}

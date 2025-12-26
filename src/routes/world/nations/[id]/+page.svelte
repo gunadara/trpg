@@ -5,6 +5,7 @@
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
   import DocEditLayout from '$lib/components/edit/DocEditLayout.svelte';
+  import DetailSwitcher from '$lib/features/world/details/DetailSwitcher.svelte';
 
 
   import {
@@ -38,7 +39,7 @@
   }
 
   // 언급/백링크
-   $: mentionedDocs = selectedDoc
+    $: mentionedDocs = selectedDoc
     ? (selectedDoc.mentions ?? [])
       .map((id) => getDocById(id))
       .filter((d): d is WorldDoc => !!d)
@@ -231,7 +232,7 @@ async function handleThumbnailChange(event: Event) {
 
 <DocEditLayout
   icon={META.icon}
-  title="인물 편집"
+  title="나라 편집"
   subtitle="문서를 편집합니다."
   onBack={backToList}
   primaryText={isSaving ? '저장 중...' : '저장(DB)'}
@@ -305,6 +306,13 @@ async function handleThumbnailChange(event: Event) {
           />
         </div>
       </div>
+
+      <!-- ✅ [NEW] 2. 스킬 상세 설정 UI (여기에 추가됨!) -->
+      <!-- 제목/요약(위)과 본문(아래) 사이 -->
+      <DetailSwitcher 
+        category={CATEGORY} 
+        bind:data={selectedDoc.attributes} 
+      />
 
       <!-- 본문 -->
       <div class="flex-1 flex flex-col gap-2">

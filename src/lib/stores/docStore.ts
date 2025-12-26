@@ -1,16 +1,18 @@
-// src/lib/stores/docStore.ts
 import type { CategoryId } from '$lib/domain/categories';
 import type { WorldDoc } from '$lib/domain/docs';
 import { loadWorldDocs, saveWorldDocs } from '$lib/services/db';
 import { matchesTextQuery } from '$lib/utils/koreanSearch';
 
-import { get } from 'svelte/store';
+// ✅ [수정] writable 추가
+import { get, writable } from 'svelte/store';
 import { currentWorldId } from '$lib/stores/worldStore';
 import {
   saveWorldDocsToSQLite,
   loadWorldDocsFromSQLite
 } from '$lib/services/sqlite';
 
+// ✅ [수정] 외부에서 구독 가능한 스토어 객체 생성
+export const docStore = writable<WorldDoc[]>([]);
 
 // ID 생성기 (카테고리 prefix + uuid/타임스탬프)
 function makeId(category: CategoryId): string {
@@ -28,10 +30,13 @@ const CATEGORY_LABEL: Record<CategoryId, string> = {
   nations: '국가 문서',
   locations: '장소 문서',
   events: '사건 문서',
-  storylines: '스토리 라인'
+  storylines: '스토리 라인',
+  items: '아이템 문서',
+  skills: '스킬 문서',
+  quests: '퀘스트 문서'
 };
 
-const DEFAULT_WORLD_ID = 'default';  // ⬅ 기본 세계 id 하나 정해두기
+const DEFAULT_WORLD_ID = 'default';
 
 // 최초 앱 실행 시 사용할 기본 예시 데이터
 const DEFAULT_DOCS: WorldDoc[] = [
@@ -111,11 +116,70 @@ const DEFAULT_DOCS: WorldDoc[] = [
     thumbnailPath: null,
     createdAt: '2025-01-01T00:00:00.000Z',
     updatedAt: '2025-01-01T00:00:00.000Z'
+  },
+  {
+    id: makeId('items'),
+    worldId: DEFAULT_WORLD_ID,
+    category: 'items',
+    title: '예시 아이템 – 달빛 단검',
+    summary: '기본 샘플 아이템. Phase 2 attributes 테스트용.',
+    content: '',
+    thumbnailPath: null,
+    attributes: {
+      type: '무기',
+      grade: '레어',
+      price: '500 G',
+      weight: 1.2,
+      stats: ['공격력 +5', '야간 명중 +1'],
+      requirement: 'Lv. 3 이상'
+    },
+    createdAt: '2025-01-01T00:00:00.000Z',
+    updatedAt: '2025-01-01T00:00:00.000Z'
+  },
+  {
+    id: makeId('skills'),
+    worldId: DEFAULT_WORLD_ID,
+    category: 'skills',
+    title: '예시 스킬 – 은빛 섬광',
+    summary: '기본 샘플 스킬. Phase 2 attributes 테스트용.',
+    content: '',
+    thumbnailPath: null,
+    attributes: {
+      type: '액티브(물리)',
+      cost: '기력 2',
+      cooldown: '10초',
+      range: '근거리(자기 주변 2m)',
+      effect: ['대상 1명에게 1d8+DEX 피해', '2턴 동안 실명(확률 30%)']
+    },
+    createdAt: '2025-01-01T00:00:00.000Z',
+    updatedAt: '2025-01-01T00:00:00.000Z'
+  },
+  {
+    id: makeId('quests'),
+    worldId: DEFAULT_WORLD_ID,
+    category: 'quests',
+    title: '예시 퀘스트 – 붉은 달의 파편 회수',
+    summary: '기본 샘플 퀘스트. Phase 2 attributes 테스트용.',
+    content: '',
+    thumbnailPath: null,
+    attributes: {
+      status: '진행 중',
+      goal: '안개 숲 깊은 곳에서 파편 1개를 회수하여 의뢰인에게 전달',
+      rewards: ['아이템: 달빛 단검', '금화 200 G']
+    },
+    createdAt: '2025-01-01T00:00:00.000Z',
+    updatedAt: '2025-01-01T00:00:00.000Z'
   }
 ];
 
 // 모듈 내부에서 유지하는 "현재 세션의 세계관 문서들"
 let memoryDocs: WorldDoc[] = [];
+
+// ✅ [수정] 메모리 상태 변경 시 스토어도 업데이트하는 헬퍼
+function updateMemoryAndStore(newDocs: WorldDoc[]) {
+  memoryDocs = newDocs;
+  docStore.set(memoryDocs); // 스토어 구독자들에게 알림
+}
 
 function ensureInitialized() {
   if (memoryDocs.length > 0) return;
@@ -126,7 +190,7 @@ function ensureInitialized() {
     let needsSave = false;
 
     // stored를 WorldDoc[]라고 명시
-    memoryDocs = (stored as WorldDoc[]).map((doc) => {
+    const initializedDocs = (stored as WorldDoc[]).map((doc) => {
       if (!doc.worldId) {
         needsSave = true;
         return { ...doc, worldId: DEFAULT_WORLD_ID };
@@ -134,11 +198,15 @@ function ensureInitialized() {
       return doc;
     });
 
+    // 메모리와 스토어 동기화
+    updateMemoryAndStore(initializedDocs);
+
     if (needsSave) {
       saveWorldDocs(memoryDocs);
     }
   } else {
-    memoryDocs = [...DEFAULT_DOCS];
+    // 기본 데이터로 초기화
+    updateMemoryAndStore([...DEFAULT_DOCS]);
     saveWorldDocs(memoryDocs);
   }
 }
@@ -231,7 +299,8 @@ export function createBlankDoc(category: CategoryId): WorldDoc {
     updatedAt: now
   };
 
-  memoryDocs = [newDoc, ...memoryDocs];
+  // ✅ [수정] 스토어 업데이트
+  updateMemoryAndStore([newDoc, ...memoryDocs]);
   saveWorldDocs(memoryDocs);
 
   return newDoc;
@@ -243,10 +312,10 @@ export function deleteDoc(id: string): void {
 
   // 1) 해당 문서 제거
   const removedId = id;
-  memoryDocs = memoryDocs.filter((d) => d.id !== removedId);
+  let nextDocs = memoryDocs.filter((d) => d.id !== removedId);
 
   // 2) 다른 문서들 mentions에서 이 id 빼주기
-  memoryDocs = memoryDocs.map((d) => {
+  nextDocs = nextDocs.map((d) => {
     const m = d.mentions ?? [];
     if (!m.length) return d;
 
@@ -256,6 +325,8 @@ export function deleteDoc(id: string): void {
     return { ...d, mentions: nextMentions };
   });
 
+  // ✅ [수정] 스토어 업데이트
+  updateMemoryAndStore(nextDocs);
   saveWorldDocs(memoryDocs);
 }
 
@@ -270,17 +341,20 @@ export function saveDoc(doc: WorldDoc): WorldDoc {
   const updated: WorldDoc = { ...doc, updatedAt: now };
 
   const idx = memoryDocs.findIndex((d) => d.id === updated.id);
+  let nextDocs;
 
   if (idx === -1) {
-    memoryDocs = [updated, ...memoryDocs];
+    nextDocs = [updated, ...memoryDocs];
   } else {
-    memoryDocs = [
+    nextDocs = [
       ...memoryDocs.slice(0, idx),
       updated,
       ...memoryDocs.slice(idx + 1)
     ];
   }
 
+  // ✅ [수정] 스토어 업데이트
+  updateMemoryAndStore(nextDocs);
   saveWorldDocs(memoryDocs);
   return updated;
 }
@@ -321,6 +395,7 @@ export async function syncCurrentWorldToSQLite(): Promise<void> {
 
   await saveWorldDocsToSQLite(worldId, docsForWorld);
 }
+
 // 🔹 SQLite에 저장된 현재 world 문서들을 메모리/로컬스토리지로 끌어오는 헬퍼
 export async function hydrateCurrentWorldFromSQLite(): Promise<void> {
   // SSR 방어: 서버 렌더링 환경에서는 아무것도 안 함
@@ -351,8 +426,8 @@ export async function hydrateCurrentWorldFromSQLite(): Promise<void> {
     (doc) => (doc.worldId ?? DEFAULT_WORLD_ID) !== worldId
   );
 
-  // 4) 메모리 상태 교체
-  memoryDocs = [...otherWorldDocs, ...normalizedDocs];
+  // 4) 메모리 상태 교체 + ✅ [수정] 스토어 업데이트
+  updateMemoryAndStore([...otherWorldDocs, ...normalizedDocs]);
 
   // 5) localStorage에도 반영
   saveWorldDocs(memoryDocs);

@@ -8,7 +8,7 @@
   import { currentWorldId } from '$lib/stores/worldStore';
   import { goto } from '$app/navigation';
 
-  import DocListLayout from '$lib/components/dos/DocListLayout.svelte';
+  import DocListLayout from '$lib/components/docs/DocListLayout.svelte';
 
   const CATEGORY: CategoryId = 'races';
   const META = CATEGORY_META[CATEGORY];

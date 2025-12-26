@@ -10,7 +10,10 @@ export const CATEGORY_ROUTE: Record<CategoryId, string> = {
   nations: '/world/nations',
   locations: '/world/locations',
   events: '/world/events',
-  storylines: '/world/storylines'
+  storylines: '/world/storylines',
+  items: '/world/items',
+  skills: '/world/skills',
+  quests: '/world/quests'
 };
 
 export function gotoDoc(doc: WorldDoc) {
@@ -20,6 +23,6 @@ export function gotoDoc(doc: WorldDoc) {
     return;
   }
 
-  const url = `${base}?id=${encodeURIComponent(doc.id)}`;
-  goto(url);
+  goto(`${base}/${encodeURIComponent(doc.id)}`);
 }
+

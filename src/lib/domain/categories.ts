@@ -8,7 +8,10 @@ export type CategoryId =
   | 'nations'      // 나라
   | 'locations'    // 장소/지도
   | 'events'       // 사건 사고
-  | 'storylines';  // 스토리 라인
+  | 'storylines'   // 스토리 라인
+  | 'items'        // 아이템
+  | 'skills'       // 스킬
+  | 'quests';      // 퀘스트
 
 // UI에 쓸 메타데이터 (아이콘/한글 표기 등)
 export const CATEGORY_META: Record<
@@ -21,8 +24,26 @@ export const CATEGORY_META: Record<
   nations: { icon: '🏳️', label: '나라' },
   locations: { icon: '🗺️', label: '장소/지도' },
   events: { icon: '💥', label: '사건 사고' },
-  storylines: { icon: '📜', label: '스토리 라인' }
+  storylines: { icon: '📜', label: '스토리 라인' },
+  items: { icon: '⚔️', label: '아이템' },
+  skills: { icon: '✨', label: '스킬' },
+  quests: { icon: '📜', label: '퀘스트' }
 };
+
+// GENESIS World에서 쓰는 카테고리 순서(사이드바/홈 카드/드로어 공통)
+export const WORLD_CATEGORY_IDS: readonly CategoryId[] = [
+  'characters',
+  'races',
+  'groups',
+  'nations',
+  'locations',
+  'events',
+  'storylines',
+  'items',
+  'skills',
+  'quests'
+] as const;
+
 
 // ────────────────────────────────────────────
 // 카테고리별 칩(뱃지) 색상 클래스
@@ -49,7 +70,16 @@ export const CATEGORY_PILL_CLASS: Record<CategoryId, string> = {
     'dark:bg-rose-900/40 dark:text-rose-100 dark:hover:bg-rose-900',
   storylines:
     'bg-violet-50 text-violet-700 hover:bg-violet-100 ' +
-    'dark:bg-violet-900/40 dark:text-violet-100 dark:hover:bg-violet-900'
+    'dark:bg-violet-900/40 dark:text-violet-100 dark:hover:bg-violet-900',
+  items:
+    'bg-slate-50 text-slate-700 hover:bg-slate-100 ' +
+    'dark:bg-slate-800/60 dark:text-slate-100 dark:hover:bg-slate-800',
+  skills:
+    'bg-cyan-50 text-cyan-700 hover:bg-cyan-100 ' +
+    'dark:bg-cyan-900/40 dark:text-cyan-100 dark:hover:bg-cyan-900',
+  quests:
+    'bg-orange-50 text-orange-700 hover:bg-orange-100 ' +
+    'dark:bg-orange-900/40 dark:text-orange-100 dark:hover:bg-orange-900'
 };
 
 export function categoryPillClass(category: CategoryId): string {

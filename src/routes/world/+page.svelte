@@ -12,11 +12,14 @@
     'nations',
     'locations',
     'events',
-    'storylines'
+    'storylines',
+    'items',
+    'skills',
+    'quests'
   ];
 
   // 세계가 바뀌면 이 값이 바뀌어서 아래 cards도 다시 계산됨
-  $: _world = $currentWorldId;
+  $: _world = $currentWorldId; // world 변경 시 반응 트리거 용도
 
   // 세계 + 카테고리 기준으로 카드 다시 계산
   $: cards = CATEGORIES.map((id) => {
