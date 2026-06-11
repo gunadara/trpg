@@ -30,6 +30,7 @@ const WORLD_ITEMS: NavItem[] = WORLD_CATEGORY_IDS.map((id) => ({
 
   // ✅ (2) 현재 경로가 /world 아래인지 판별 (이거 추가)
   $: inWorld = $page.url.pathname.startsWith('/world');
+  $: inPlay = $page.url.pathname.startsWith('/play'); // ✅ 추가
 
   let drawerOpen = false;
   const toggleDrawer = () => (drawerOpen = !drawerOpen);
@@ -55,9 +56,11 @@ const WORLD_ITEMS: NavItem[] = WORLD_CATEGORY_IDS.map((id) => ({
   <link rel="icon" href={favicon} />
 </svelte:head>
 
-{#if inWorld}
-  <!-- /world는 src/routes/world/+layout.svelte가 쉘 담당 -->
-  <slot />
+
+{#if inWorld || inPlay}
+ <div class="min-h-[100dvh] bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50">
+    <slot />
+  </div>
 {:else}
   <div class="min-h-screen flex bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50">
     <!-- 좌측 고정 사이드바 (md 이상) -->

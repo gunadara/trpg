@@ -360,6 +360,21 @@ export function saveDoc(doc: WorldDoc): WorldDoc {
 }
 
 
+// ◼ 문서 부분 수정(patch) - 공용 에디터에서 쓰기 좋음
+export function patchDoc(
+  id: string,
+  patch: Partial<WorldDoc>
+): WorldDoc | null {
+  ensureInitialized();
+
+  const prev = getDocById(id);
+  if (!prev) return null;
+
+  // saveDoc가 updatedAt 갱신 + mentions 정리까지 해줌
+  return saveDoc({ ...prev, ...patch });
+}
+
+
 // ◼ 제목으로 문서 검색 (모든 카테고리 대상)
 export function searchDocsByTitle(query: string): WorldDoc[] {
   ensureInitialized();

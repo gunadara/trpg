@@ -63,7 +63,7 @@
 </script>
 
 <!-- 전체 월드 영역을 감싸는 AppShell -->
-<div class="min-h-full flex flex-col bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-50">
+<div class="min-h-[100dvh] flex flex-col bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-50">
   <!-- 🔹 모바일 상단 앱바 (md 미만에서만 보임) -->
 <header
   class="md:hidden flex items-center justify-between px-3 py-2
@@ -153,13 +153,14 @@
 </header>
 
   <!-- 본문: 좌측 사이드바 + 우측 콘텐츠 -->
-  <div class="flex-1 flex overflow-hidden">
+  <div class="flex-1 flex overflow-hidden min-h-0">
     <!-- 🔹 데스크탑 / 태블릿용 고정 사이드바 -->
-<aside
-  class="hidden md:flex md:flex-col md:w-60 lg:w-64
-         border-r border-slate-200 dark:border-slate-800
-         bg-white/90 dark:bg-slate-950/80 backdrop-blur"
->
+<aside class="hidden md:flex md:flex-col md:w-60 lg:w-64
+             self-stretch
+             border-r border-slate-200 dark:border-slate-800
+             bg-white dark:bg-slate-950
+             backdrop-blur">
+
   <div
     class="px-4 py-3 border-b border-slate-200 dark:border-slate-800
            space-y-2"
@@ -251,7 +252,7 @@
     </aside>
 
     <!-- 🔹 오른쪽 실제 페이지(각 카테고리의 +page.svelte가 여기로 들어옴) -->
-    <main class="flex-1 overflow-auto">
+    <main class="flex-1 min-h-0 overflow-auto bg-slate-50 dark:bg-slate-900">
       <slot />
     </main>
   </div>

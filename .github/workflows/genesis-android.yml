@@ -3,18 +3,17 @@ name: GENESIS Android APK Build & Release
 on:
   push:
     branches: ["main"]
-    tags: ["v*"]      # v0.3.1 같은 태그를 푸시하면 이 빌드가 작동합니다.
+    tags: ["*"]        # 모든 태그(*) 푸시 시 빌드 작동하도록 확장
   pull_request:
     branches: ["main"]
-  workflow_dispatch:   # 버튼 눌러서 수동 빌드도 가능하게 함
+  workflow_dispatch:   # 버튼 눌러서 수동 빌드 가능
 
-# 중복 빌드 방지
 concurrency:
   group: android-build-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
-  contents: write    # Release를 생성하고 파일을 올리려면 반드시 write여야 합니다.
+  contents: write      # Release 생성 및 파일 업로드를 위한 필수 권한
 
 jobs:
   build:
@@ -36,7 +35,6 @@ jobs:
       - name: Build SvelteKit App
         run: npm run build
 
-      # 첫 번째 코드에 있던 안정성 보정 로직 (Capacitor 빌드 에러 방지)
       - name: Ensure Cordova variables file exists
         run: |
           mkdir -p android/capacitor-cordova-android-plugins
@@ -48,7 +46,6 @@ jobs:
           distribution: "zulu"
           java-version: "21"
 
-      # 두 번째 코드에 있던 속도 향상 로직 (Gradle 캐싱)
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
@@ -64,7 +61,7 @@ jobs:
           chmod +x gradlew
           ./gradlew :app:assembleDebug
 
-      # 1. 모든 빌드 결과를 Actions 탭에 임시 저장 (Artifact)
+      # 1. Actions 탭에 임시 저장 (백업용)
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -72,17 +69,18 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
-      # 2. 태그(v*)가 올라왔을 때만 GitHub Release에 정식 등록
+      # 2. GitHub Release(태그 페이지)에 APK 파일 영구 등록
+      # push된 것이 '태그'일 때만 실행됩니다.
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: android/app/build/outputs/apk/debug/app-debug.apk
-          name: Release ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          name: GENESIS Build ${{ github.ref_name }}
           body: |
-            GENESIS 자동 빌드 시스템에서 생성된 APK입니다.
-            - 버전: ${{ github.ref_name }}
-            - 빌드 시각: ${{ github.event.head_commit.timestamp }}
+            태그 `${{ github.ref_name }}`에 대한 자동 빌드 결과물입니다.
+            내려받아서 폰에 설치하세요!
           draft: false
           prerelease: false
         env:
