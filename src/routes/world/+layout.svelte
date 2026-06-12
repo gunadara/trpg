@@ -95,6 +95,7 @@
 
   <!-- ✅ 오른쪽 컨트롤 줄 -->
   <div class="flex items-center gap-2">
+    <a href="/" class="px-2 py-1 rounded-lg text-[11px] text-slate-500 hover:text-indigo-500 border border-slate-200 dark:border-slate-700 transition">🏠</a>
     <!-- 세계 선택 -->
     <select
       class="rounded-lg border border-slate-200 dark:border-slate-700
@@ -166,6 +167,10 @@
            space-y-2"
   >
     <div>
+    <div class="flex items-center justify-between mb-1">
+      <a href="/" class="text-[11px] text-slate-500 hover:text-indigo-500 transition">← 홈으로</a>
+      <a href="/oracle" class="text-[11px] text-indigo-400 hover:underline">🔮 오라클</a>
+    </div>
     <h1 class="text-xs font-semibold mb-0.5 tracking-tight">
       세계관 문서
     </h1>

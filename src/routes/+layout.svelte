@@ -18,7 +18,11 @@ import { CATEGORY_ROUTE } from '$lib/services/worldNav';
   };
 
   const navItems: NavItem[] = [
-    { icon: '🌏', label: '세계관 관리', href: '/world' }
+    { icon: '🌏', label: '세계관 관리', href: '/world' },
+    { icon: '📜', label: '세계관 연표', href: '/timeline' },
+    { icon: '🕸️', label: '관계도', href: '/visualizer' },
+    { icon: '🎲', label: '세션 플레이', href: '/play' },
+    { icon: '🔮', label: '오라클', href: '/oracle' }
   ];
 
 const WORLD_ITEMS: NavItem[] = WORLD_CATEGORY_IDS.map((id) => ({
