@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fileToDataUrl } from '$lib/services/thumbnails';
   type LocationData = {
     type: 'city' | 'dungeon' | 'nature' | 'building';
     nation: string;
@@ -7,11 +8,29 @@
     atmosphere: string;  // 분위기
     features: string;    // 명물 / 특징
     secrets: string;     // 숨겨진 것
+    mapImage: string;    // 지도 이미지 (dataURL)
+    pins: any[];         // 지도 핀 (지도 페이지에서 관리)
   };
 
   export let value: Partial<LocationData> = {};
 
   if (!value.type) value.type = 'city';
+
+  let mapFileInput: HTMLInputElement;
+
+  async function uploadMap(e: Event) {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    value.mapImage = await fileToDataUrl(file);
+    value = value; // 반응성 트리거
+  }
+
+  function removeMap() {
+    if (!confirm('지도 이미지를 제거할까요? (찍어둔 핀도 함께 사라져요)')) return;
+    value.mapImage = '';
+    value.pins = [];
+    value = value;
+  }
 
   const inputCls = "w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition";
   const labelCls = "block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5 ml-1";
@@ -71,5 +90,31 @@
   <div class="rounded-xl border border-dashed border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-900/10 p-3">
     <label class="block text-xs font-bold text-amber-600 dark:text-amber-400 mb-1.5 ml-1">🔒 숨겨진 것</label>
     <textarea bind:value={value.secrets} rows="2" placeholder="이 장소에 묻혀 있는 비밀" class={inputCls}></textarea>
+  </div>
+
+  <!-- 지도 -->
+  <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-900/30 p-3">
+    <div class="flex items-center justify-between mb-2">
+      <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 ml-1">🗺️ 이 장소의 지도</label>
+      {#if value.mapImage}
+        <div class="flex gap-3">
+          <a href="/maps" class="text-[11px] text-indigo-400 hover:underline">지도 페이지에서 핀 찍기 →</a>
+          <button type="button" class="text-[11px] text-rose-400 hover:underline" on:click={removeMap}>제거</button>
+        </div>
+      {/if}
+    </div>
+
+    {#if value.mapImage}
+      <img src={value.mapImage} alt="지도 미리보기" class="w-full max-h-48 object-cover rounded-lg border border-slate-200 dark:border-slate-700" />
+    {:else}
+      <button
+        type="button"
+        on:click={() => mapFileInput.click()}
+        class="w-full py-6 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 text-xs text-slate-400 hover:border-indigo-400 hover:text-indigo-400 transition"
+      >
+        + 지도 이미지 올리기 (Azgaar 내보내기, 직접 그린 그림 등)
+      </button>
+    {/if}
+    <input type="file" accept="image/*" class="hidden" bind:this={mapFileInput} on:change={uploadMap} />
   </div>
 </section>

@@ -189,12 +189,14 @@
       <div class="mt-4 rounded-xl border border-slate-700 bg-slate-950/60 p-4 text-sm leading-relaxed text-slate-200">
         <span class="text-emerald-400">{scene.mood}</span>
         {#if scene.location}
-          <button class={docBtnCls} on:click={() => openDoc(scene.location)}>「{scene.location.title}」</button>에서,
+          {@const loc = scene.location}
+          <button class={docBtnCls} on:click={() => openDoc(loc)}>「{loc.title}」</button>에서,
         {:else}
           <span class="text-slate-500">「미지의 장소」</span>에서,
         {/if}
         {#if scene.character}
-          <button class={docBtnCls} on:click={() => openDoc(scene.character)}>{scene.character.title}</button>와(과) 마주친다.
+          {@const char = scene.character}
+          <button class={docBtnCls} on:click={() => openDoc(char)}>{char.title}</button>와(과) 마주친다.
         {:else}
           <span class="text-slate-500">낯선 인물</span>와(과) 마주친다.
         {/if}
@@ -218,7 +220,8 @@
         <p class="text-sm text-slate-300">
           관련 설정:
           {#if event.subject}
-            <button class={docBtnCls} on:click={() => openDoc(event.subject)}>「{event.subject.title}」</button>
+            {@const subj = event.subject}
+            <button class={docBtnCls} on:click={() => openDoc(subj)}>「{subj.title}」</button>
           {:else}
             <span class="text-slate-500">??? (문서가 없어요)</span>
           {/if}
