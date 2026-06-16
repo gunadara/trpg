@@ -1,13 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { WorldDoc } from '$lib/domain/docs';
-  import { CATEGORY_META } from '$lib/domain/categories';
+  import { DEFAULT_REL_TYPES, type RelType } from '$lib/stores/relationLabels';
 
   export let docs: WorldDoc[] = [];
+  export let labels: Record<string, string> = {};   // `${from}->${to}` -> 관계 타입
+  export let types: Record<string, RelType> = DEFAULT_REL_TYPES;
   export let onNodeClick: (id: string) => void = () => {};
+  export let onEdgeClick: (from: string, to: string) => void = () => {};
 
   let container: HTMLDivElement;
-  let network: any;
+  let network: any = null;
+  let visReady = false;
 
   // 카테고리별 색상 테마 (GENESIS 스타일)
   const COLORS: Record<string, any> = {
@@ -19,60 +23,68 @@
     default: { background: '#90A4AE', border: '#78909C', highlight: '#CFD8DC' }
   };
 
-  onMount(async () => {
-    // 1. vis-network 라이브러리 동적 로드 (CDN)
-    const vis = (window as any).vis;
-    if (!vis) {
+  onMount(() => {
+    const w = window as any;
+    if (w.vis) {
+      visReady = true;
+    } else {
       const script = document.createElement('script');
       script.src = 'https://unpkg.com/vis-network/standalone/umd/vis-network.min.js';
+      script.onload = () => { visReady = true; };
       document.head.appendChild(script);
-      script.onload = () => initNetwork();
-    } else {
-      initNetwork();
     }
+    return () => { if (network) network.destroy(); };
   });
 
-  function initNetwork() {
+  // docs나 labels가 바뀌면 다시 그림 (필터 토글 대응)
+  $: if (visReady && container) render(docs, labels, types);
+
+  function render(docList: WorldDoc[], labelMap: Record<string, string>, typeMap: Record<string, RelType>) {
     const vis = (window as any).vis;
-    
-    // 2. 데이터 변환 (Docs -> Nodes & Edges)
-    const nodes = docs.map(doc => ({
+    if (!vis) return;
+
+    const ids = new Set(docList.map((d) => d.id));
+
+    const nodes = docList.map((doc) => ({
       id: doc.id,
       label: doc.title,
-      title: doc.summary || doc.title, // 툴팁
+      title: doc.summary || doc.title,
       color: COLORS[doc.category] || COLORS.default,
       font: { color: '#ffffff', size: 14, strokeWidth: 2, strokeColor: '#000000' },
       shape: 'dot',
-      size: doc.category === 'characters' ? 25 : 18 // 주인공(인물)은 좀 더 크게
+      size: doc.category === 'characters' ? 25 : 18
     }));
 
     const edges: any[] = [];
-    docs.forEach(doc => {
-      if (doc.mentions && doc.mentions.length > 0) {
-        doc.mentions.forEach(targetId => {
-          // 중복 선 방지 및 유효한 타겟인지 확인
-          if (docs.some(d => d.id === targetId)) {
-            edges.push({
-              from: doc.id,
-              to: targetId,
-              arrows: 'to',
-              color: { color: '#475569', opacity: 0.4 },
-              width: 1
-            });
-          }
+    docList.forEach((doc) => {
+      (doc.mentions ?? []).forEach((targetId) => {
+        if (!ids.has(targetId)) return; // 필터로 숨은 노드로 가는 선은 생략
+        const key = `${doc.id}->${targetId}`;
+        const rel = labelMap[key] ? (typeMap[labelMap[key]] ?? null) : null;
+        edges.push({
+          id: key,
+          from: doc.id,
+          to: targetId,
+          arrows: 'to',
+          label: rel ? rel.label : undefined,
+          font: rel
+            ? { color: rel.color, size: 11, strokeWidth: 4, strokeColor: '#0f172a' }
+            : undefined,
+          color: rel
+            ? { color: rel.color, opacity: 0.85, highlight: rel.color }
+            : { color: '#475569', opacity: 0.4 },
+          width: rel ? 2 : 1
         });
-      }
+      });
     });
 
-    // 3. 네트워크 옵션 설정
     const data = { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
     const options = {
-      nodes: {
-        borderWidth: 2,
-        shadow: true
-      },
+      nodes: { borderWidth: 2, shadow: true },
       edges: {
-        smooth: { type: 'continuous' }
+        smooth: { type: 'continuous' },
+        hoverWidth: 1.5,
+        selectionWidth: 2
       },
       physics: {
         forceAtlas2Based: {
@@ -86,18 +98,19 @@
         timestep: 0.35,
         stabilization: { iterations: 150 }
       },
-      interaction: {
-        hover: true,
-        tooltipDelay: 200
-      }
+      interaction: { hover: true, tooltipDelay: 200 }
     };
 
+    if (network) network.destroy();
     network = new vis.Network(container, data, options);
 
-    // 4. 클릭 이벤트 연결
     network.on('click', (params: any) => {
       if (params.nodes.length > 0) {
         onNodeClick(params.nodes[0]);
+      } else if (params.edges.length > 0) {
+        // 선 클릭 → 관계 라벨 편집
+        const [from, to] = String(params.edges[0]).split('->');
+        if (from && to) onEdgeClick(from, to);
       }
     });
   }
@@ -105,7 +118,7 @@
 
 <div class="relative w-full h-full bg-[#0f172a] overflow-hidden rounded-2xl border border-slate-800">
   <div bind:this={container} class="w-full h-full"></div>
-  
+
   <!-- 범례 (Legend) -->
   <div class="absolute bottom-4 left-4 p-3 bg-black/50 backdrop-blur-md rounded-lg border border-white/10 flex flex-wrap gap-3 pointer-events-none">
     {#each Object.entries(COLORS) as [cat, theme]}
@@ -120,12 +133,11 @@
 
   <!-- 조작 안내 -->
   <div class="absolute top-4 right-4 text-[10px] text-slate-500 bg-black/20 px-2 py-1 rounded">
-    마우스 휠: 확대/축소 | 드래그: 이동 | 노드 클릭: 문서 이동
+    휠: 확대/축소 | 드래그: 이동 | 노드 클릭: 문서 | 선 클릭: 관계 라벨
   </div>
 </div>
 
 <style>
-  /* vis-network 툴팁 스타일 보정 */
   :global(.vis-tooltip) {
     background-color: #1e293b !important;
     color: #f1f5f9 !important;
