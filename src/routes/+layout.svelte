@@ -24,7 +24,8 @@ import { CATEGORY_ROUTE } from '$lib/services/worldNav';
     { icon: '🗺️', label: '지도', href: '/maps' },
     { icon: '🎲', label: '세션 플레이', href: '/play' },
     { icon: '🔮', label: '오라클', href: '/oracle' },
-    { icon: '🎰', label: '소재 뽑기', href: '/draw' }
+    { icon: '🎰', label: '소재 뽑기', href: '/draw' },
+    { icon: '📖', label: '플레이 저널', href: '/journal' }
   ];
 
 const WORLD_ITEMS: NavItem[] = WORLD_CATEGORY_IDS.map((id) => ({

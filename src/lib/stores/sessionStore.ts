@@ -43,6 +43,17 @@ function createSessionStore() {
       });
     },
 
+    removeLog(id: string) {
+      update(session => {
+        if (!session) return null;
+        session.logs = session.logs.filter(l => l.id !== id);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+        }
+        return session;
+      });
+    },
+
     load() {
       if (typeof window === 'undefined') return;
       const raw = localStorage.getItem(STORAGE_KEY);
