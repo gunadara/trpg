@@ -10,6 +10,7 @@
   import type { CategoryId } from '$lib/domain/categories';
 import { CATEGORY_META, WORLD_CATEGORY_IDS } from '$lib/domain/categories';
 import { CATEGORY_ROUTE } from '$lib/services/worldNav';
+import DrawHelper from '$lib/features/draw/DrawHelper.svelte';
 
   type NavItem = {
     icon: string;
@@ -178,4 +179,5 @@ const WORLD_ITEMS: NavItem[] = WORLD_CATEGORY_IDS.map((id) => ({
       </main>
     </div>
   </div>
+  <DrawHelper />
 {/if}

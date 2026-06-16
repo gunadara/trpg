@@ -13,6 +13,7 @@
     renameWorld
   } from '$lib/stores/worldStore';
   import { hydrateCurrentWorldFromSQLite } from '$lib/stores/docStore';
+  import DrawHelper from '$lib/features/draw/DrawHelper.svelte';
 
     // /world 영역 진입 시 한 번, SQLite → 메모리/로컬스토리지 하이드레이트
   onMount(() => {
@@ -334,3 +335,5 @@
     </aside>
   {/if}
 </div>
+
+<DrawHelper />

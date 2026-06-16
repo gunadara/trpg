@@ -5,7 +5,7 @@ import { writable } from 'svelte/store';
 
 const STORAGE_KEY = 'genesis.draw_data';
 
-export type DrawCategory = { name: string; words: string[] };
+export type DrawCategory = { name: string; words: string[]; enabled?: boolean };
 
 export type DrawData = {
   mode: 'category' | 'all'; // 카테고리별 1개씩 | 전체에서 N개
@@ -19,9 +19,12 @@ export const DEFAULT_DRAW: DrawData = {
   count: 3,
   activeCat: 0,
   categories: [
-    { name: '장소', words: ['계단', '지하도', '잠긴 문', '창문', '마지막 버스', '옥상', '폐서점'] },
-    { name: '사물', words: ['거울', '달력', '꺼진 전화', '편지', '빈 의자', '지도', '녹슨 열쇠', '사진'] },
-    { name: '분위기', words: ['낯선 냄새', '새벽 세시', '반복', '목소리', '그림자', '안개', '이름'] }
+    { name: '장소', enabled: true, words: ['계단', '지하도', '잠긴 문', '창문', '마지막 버스', '옥상', '폐서점'] },
+    { name: '사물', enabled: true, words: ['거울', '달력', '꺼진 전화', '편지', '빈 의자', '지도', '녹슨 열쇠', '사진'] },
+    { name: '분위기', enabled: true, words: ['낯선 냄새', '새벽 세시', '반복', '목소리', '그림자', '안개', '이름'] },
+    { name: '캐릭터성', enabled: false, words: ['겉으론 냉정하지만 정 많은', '거짓말을 못 하는', '복수심에 사로잡힌', '과거를 숨기는', '누구에게도 곁을 안 주는', '맹목적으로 충성하는', '비겁하지만 결정적일 때 나서는', '농담으로 진심을 감추는', '원칙에 목숨 거는', '의외로 겁이 많은'] },
+    { name: '욕망/동기', enabled: false, words: ['인정받고 싶다', '잃은 것을 되찾고 싶다', '진실을 알고 싶다', '도망치고 싶다', '누군가를 지키고 싶다', '복수하고 싶다', '자유로워지고 싶다', '속죄하고 싶다'] },
+    { name: '장르/톤', enabled: false, words: ['호러', '느와르', '로맨스', '성장담', '미스터리', '다크 판타지', '블랙코미디', '비극', '스릴러', '잔잔한 일상'] }
   ]
 };
 
@@ -30,7 +33,7 @@ function clone(d: DrawData): DrawData {
     mode: d.mode,
     count: d.count,
     activeCat: d.activeCat,
-    categories: d.categories.map((c) => ({ name: c.name, words: [...c.words] }))
+    categories: d.categories.map((c) => ({ name: c.name, words: [...c.words], enabled: c.enabled !== false }))
   };
 }
 
@@ -47,7 +50,8 @@ function load(): DrawData {
           activeCat: Number.isInteger(parsed.activeCat) ? parsed.activeCat : 0,
           categories: parsed.categories.map((c: any) => ({
             name: String(c?.name ?? ''),
-            words: Array.isArray(c?.words) ? c.words.map(String) : []
+            words: Array.isArray(c?.words) ? c.words.map(String) : [],
+            enabled: c?.enabled !== false
           }))
         };
       }
@@ -133,9 +137,19 @@ function createStore() {
       });
     },
 
+    // 카테고리 포함/제외 토글 (뽑기 대상)
+    toggleEnabled(i: number) {
+      update((d) => {
+        const cat = d.categories[i];
+        if (cat) cat.enabled = cat.enabled === false ? true : false;
+        persist(d);
+        return d;
+      });
+    },
+
     addCategory(name: string) {
       update((d) => {
-        d.categories.push({ name: name.trim().slice(0, 12), words: [] });
+        d.categories.push({ name: name.trim().slice(0, 12), words: [], enabled: true });
         d.activeCat = d.categories.length - 1;
         persist(d);
         return d;

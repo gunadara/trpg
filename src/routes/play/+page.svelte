@@ -8,6 +8,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
+  import DrawHelper from '$lib/features/draw/DrawHelper.svelte';
   // 경로가 맞는지 확인해 주세요. (없으면 $lib/stores/docStore 등 확인)
   import { listAllDocs } from '$lib/stores/docStore';
   import SessionFrame from '$lib/components/play/SessionFrame.svelte';
@@ -560,6 +561,8 @@
     <div class="opacity-50">제네시스 세션 v0.3.1</div>
   </footer>
 </SessionFrame>
+
+<DrawHelper />
 
 <style>
   /* 커스텀 스크롤바 (라이트 모드용) */

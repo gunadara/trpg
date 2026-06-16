@@ -35,15 +35,16 @@
   }
 
   function roll() {
+    const usable = data.categories.filter((c) => c.enabled !== false);
     if (data.mode === 'category') {
-      results = data.categories
+      results = usable
         .filter((c) => c.words.length > 0)
         .map((c) => ({
           cat: c.name,
           word: c.words[Math.floor(Math.random() * c.words.length)]
         }));
     } else {
-      const all = data.categories.flatMap((c) => c.words);
+      const all = usable.flatMap((c) => c.words);
       results = shuffle(all)
         .slice(0, Math.min(data.count, all.length))
         .map((w) => ({ cat: null, word: w }));
@@ -193,17 +194,27 @@
 
       <!-- 단어 편집 -->
       <section class={cardCls}>
-        <!-- 카테고리 탭 -->
+        <!-- 카테고리 탭 (체크 = 뽑기 포함 / 이름 클릭 = 편집) -->
+        <p class="text-[11px] text-slate-500 mb-2">✓ 체크한 카테고리만 뽑기에 사용돼요. 이름을 누르면 단어를 편집합니다.</p>
         <div class="flex flex-wrap gap-2 mb-4">
           {#each data.categories as cat, i}
-            <button
-              on:click={() => drawStore.selectCategory(i)}
-              class="px-3 py-1.5 rounded-lg text-xs border transition {i === data.activeCat
-                ? 'border-indigo-500 text-indigo-300 bg-indigo-500/10'
-                : 'border-slate-700 text-slate-400 hover:border-slate-500'}"
+            <div
+              class="flex items-center rounded-lg text-xs border transition overflow-hidden {i === data.activeCat
+                ? 'border-indigo-500 bg-indigo-500/10'
+                : 'border-slate-700'}"
             >
-              {cat.name} ({cat.words.length})
-            </button>
+              <button
+                on:click={() => drawStore.toggleEnabled(i)}
+                class="px-2 py-1.5 transition {cat.enabled !== false ? 'text-emerald-400' : 'text-slate-600'}"
+                title={cat.enabled !== false ? '뽑기에 포함됨 (클릭하면 제외)' : '제외됨 (클릭하면 포함)'}
+              >{cat.enabled !== false ? '☑' : '☐'}</button>
+              <button
+                on:click={() => drawStore.selectCategory(i)}
+                class="pe-3 py-1.5 transition {i === data.activeCat ? 'text-indigo-300' : 'text-slate-400 hover:text-slate-200'}"
+              >
+                {cat.name} ({cat.words.length})
+              </button>
+            </div>
           {/each}
           <button
             on:click={addCategory}
