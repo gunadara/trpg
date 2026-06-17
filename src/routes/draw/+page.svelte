@@ -1,284 +1,271 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { drawStore } from '$lib/stores/drawStore';
-  import { currentSession } from '$lib/stores/sessionStore';
+  import { tagStore, type Group, type Sub } from '$lib/stores/tagStore';
 
-  // 저장분 + 진행 중 세션 불러오기 (오라클과 동일 패턴)
-  onMount(() => {
-    drawStore.load();
-    currentSession.load();
-  });
+  onMount(() => tagStore.load());
 
-  type ResultItem = { cat: string | null; word: string };
-  let results: ResultItem[] = [];
+  $: data = $tagStore;
+  $: groups = data?.groups ?? [];
+
+  let gid: string | null = null;
+  const RANDOM_ID = '__random__'; // 삭제 불가 가상 항목 "전체 랜덤"
+  $: if (!gid && groups.length > 0) gid = groups[0].id;
+  $: isRandom = gid === RANDOM_ID;
+  $: group = groups.find((g) => g.id === gid) ?? null;
+
+  // 선택된 세부분류 (탭)
+  let activeSubId: string | null = null;
+  $: subs = group?.subs ?? [];
+  $: if (group && (activeSubId === null || !subs.some((s) => s.id === activeSubId))) {
+    activeSubId = subs[0]?.id ?? null;
+  }
+  $: activeSub = subs.find((s) => s.id === activeSubId) ?? null;
+
+  // 입력
+  let newGroupName = '';
+  let tagInput: Record<string, string> = {}; // subId -> 입력값
+
+  function addGroup() { if (newGroupName.trim()) { gid = tagStore.addGroup(newGroupName); newGroupName = ''; } }
+  function addTags(sub: Sub) {
+    const v = (tagInput[sub.id] ?? '').trim();
+    if (group && v) { tagStore.addTags(group.id, sub.id, v); tagInput[sub.id] = ''; tagInput = { ...tagInput }; }
+  }
+
+  // 뽑기 결과: tag(태그) + source(출처, 전체 랜덤에서만 채움)
+  let results: { tag: string; source: string | null }[] = [];
   let rolled = false;
+  let copied = false;
+  let pickCount = 3;
 
-  $: data = $drawStore;
-  $: activeCat =
-    data.categories[data.activeCat] ?? data.categories[0] ?? { name: '', words: [] };
-
-  // 세션이 켜져 있으면 결과를 로그로 남김
-  function logToSession(content: string) {
-    if ($currentSession) {
-      currentSession.addLog({ type: 'note', content: `🎰 ${content}` });
-    }
-  }
-
-  // Fisher–Yates 셔플 (sort(random)보다 균등함)
-  function shuffle<T>(arr: T[]): T[] {
-    const a = [...arr];
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  }
-
-  function roll() {
-    const usable = data.categories.filter((c) => c.enabled !== false);
-    if (data.mode === 'category') {
-      results = usable
-        .filter((c) => c.words.length > 0)
-        .map((c) => ({
-          cat: c.name,
-          word: c.words[Math.floor(Math.random() * c.words.length)]
-        }));
-    } else {
-      const all = usable.flatMap((c) => c.words);
-      results = shuffle(all)
-        .slice(0, Math.min(data.count, all.length))
-        .map((w) => ({ cat: null, word: w }));
-    }
+  function pickFromSub(sub: Sub) {
+    if (sub.tags.length === 0) return;
+    const shuffled = [...sub.tags].sort(() => Math.random() - 0.5);
+    results = shuffled.slice(0, Math.min(pickCount, shuffled.length)).map((t) => ({ tag: t, source: null }));
     rolled = true;
-
-    if (results.length > 0) {
-      const summary =
-        data.mode === 'category'
-          ? results.map((r) => `${r.cat}=${r.word}`).join(' · ')
-          : results.map((r) => r.word).join(', ');
-      logToSession(`소재: ${summary}`);
-    }
+  }
+  function pickFromGroup() {
+    if (!group) return;
+    // 왼쪽 칸: 체크된 항목마다 각각 1개씩 (캐릭터 완성용)
+    results = group.subs
+      .filter((s) => s.enabled !== false && s.tags.length > 0)
+      .map((s) => ({ tag: s.tags[Math.floor(Math.random() * s.tags.length)], source: null }));
+    rolled = true;
   }
 
-  /* ---------- 단어 / 카테고리 편집 ---------- */
-
-  let inputValue = '';
-
-  function addWord() {
-    if (!inputValue.trim()) return;
-    drawStore.addWords(inputValue);
-    inputValue = '';
+  function pickNFromGroup() {
+    if (!group) return;
+    // 오른쪽 칸: 체크된 항목 태그를 다 합쳐서 무작위 N개 (항목 구분 없이)
+    const pool = group.subs
+      .filter((s) => s.enabled !== false)
+      .flatMap((s) => s.tags);
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    results = shuffled.slice(0, Math.min(pickCount, shuffled.length)).map((t) => ({ tag: t, source: null }));
+    rolled = true;
   }
 
-  function onInputKey(e: KeyboardEvent) {
-    if (e.key === 'Enter') addWord();
+  // 전체 랜덤 — 모든 분야 통틀어 N개, 출처는 아래에 표기
+  function randomAll() {
+    const pool = groups.flatMap((g) =>
+      g.subs.flatMap((s) => s.tags.map((t) => ({ tag: t, source: `${g.name}·${s.name}` })))
+    );
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    results = shuffled.slice(0, Math.min(pickCount, shuffled.length));
+    rolled = true;
   }
-
-  function addCategory() {
-    const name = prompt('새 카테고리 이름');
-    if (name && name.trim()) drawStore.addCategory(name);
+  async function copyResult() {
+    const text = results.map((r) => r.tag).join(', ');
+    if (!text) return;
+    try { await navigator.clipboard.writeText(text); copied = true; setTimeout(() => (copied = false), 1500); } catch {}
   }
-
-  function renameCategory() {
-    const name = prompt('카테고리 이름 변경', activeCat.name);
-    if (name && name.trim()) drawStore.renameCategory(name);
-  }
-
-  function deleteCategory() {
-    if (data.categories.length <= 1) {
-      alert('카테고리는 최소 1개 필요해요');
-      return;
-    }
-    if (!confirm(`「${activeCat.name}」 카테고리와 단어 ${activeCat.words.length}개를 삭제할까요?`))
-      return;
-    drawStore.deleteCategory();
-  }
-
-  function resetAll() {
-    if (!confirm('모든 카테고리와 단어를 기본값으로 되돌릴까요?')) return;
-    drawStore.reset();
-    results = [];
-    rolled = false;
-  }
-
-  const cardCls = 'rounded-2xl border border-slate-800 bg-slate-900/70 p-5';
-  const btnCls =
-    'px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold transition';
-  const modeCls = (on: boolean) =>
-    `px-3 py-1.5 rounded-full text-xs border transition ${
-      on
-        ? 'border-indigo-500 text-indigo-300 bg-indigo-500/10'
-        : 'border-slate-700 text-slate-400 hover:border-slate-500'
-    }`;
 </script>
 
-<div class="min-h-screen flex flex-col bg-slate-950 -mx-4 -my-4 md:-mx-8 md:-my-6">
-  <header
-    class="sticky top-0 z-10 p-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between"
-  >
-    <div class="flex items-center gap-3">
-      <button
-        on:click={() => history.back()}
-        class="text-slate-400 hover:text-white transition text-sm flex items-center gap-1"
-      >
-        ← 뒤로
-      </button>
-      <h1 class="text-lg font-bold text-white flex items-center gap-2">
-        🎰 소재 뽑기 <span class="text-xs font-normal text-slate-500">(글감 무작위 추출)</span>
-      </h1>
+<div class="h-screen flex bg-slate-950 text-slate-200 overflow-hidden">
+
+  <!-- 왼쪽: 대분류 목록 (세계관 관리식 고정 사이드바) -->
+  <aside class="w-52 shrink-0 border-r border-slate-800 bg-slate-900/40 flex flex-col">
+    <div class="p-4 border-b border-slate-800">
+      <a href="/" class="text-xs text-slate-500 hover:text-indigo-400">← 홈으로</a>
+      <h1 class="text-base font-bold text-white mt-1">🃏 소재 뽑기</h1>
+      <p class="text-[10px] text-slate-500 mt-0.5">분야 · 항목 · 태그</p>
     </div>
-    <a href="/oracle" class="text-xs text-indigo-400 hover:underline">🔮 오라클로</a>
-  </header>
+    <nav class="flex-1 overflow-y-auto p-2 space-y-1">
+      <!-- 전체 랜덤 (고정, 삭제 불가) -->
+      <button on:click={() => (gid = RANDOM_ID)}
+        class="w-full text-left px-3 py-2.5 rounded-lg text-sm transition flex items-center gap-2
+               {isRandom ? 'bg-amber-600/20 text-amber-200 border border-amber-600' : 'text-slate-300 border border-transparent hover:bg-slate-800/60'}">
+        🎲 <span class="font-medium">전체 랜덤</span>
+      </button>
+      <div class="h-px bg-slate-800 my-1"></div>
 
-  <main class="flex-1 p-6">
-    <div class="max-w-2xl mx-auto space-y-6 pb-16">
-      <!-- 결과 -->
-      <section class={cardCls}>
-        <h2 class="text-sm font-bold text-indigo-400 mb-1">✨ 뽑기 결과</h2>
-        <p class="text-[11px] text-slate-500 mb-4">
-          모드를 고르고 「뽑기」를 누르세요. 단어들을 엮어 장면이나 글감으로 발전시켜 보세요.
-        </p>
+      {#each groups as g (g.id)}
+        <button on:click={() => (gid = g.id)}
+          class="w-full text-left px-3 py-2.5 rounded-lg text-sm transition flex items-center justify-between
+                 {gid === g.id ? 'bg-indigo-600/20 text-indigo-200 border border-indigo-600' : 'text-slate-300 border border-transparent hover:bg-slate-800/60'}">
+          <span class="font-medium">{g.name}</span>
+          <span class="text-[10px] text-slate-500">{g.subs.length}</span>
+        </button>
+      {/each}
+    </nav>
+    <div class="p-2 border-t border-slate-800 space-y-2">
+      <div class="flex gap-1">
+        <input bind:value={newGroupName} on:keydown={(e) => e.key === 'Enter' && addGroup()}
+          placeholder="새 분야" maxlength="16"
+          class="flex-1 min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs outline-none focus:border-indigo-500" />
+        <button on:click={addGroup} class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs">＋</button>
+      </div>
+      <button on:click={() => confirm('모든 태그를 기본값으로 되돌릴까요?') && tagStore.resetAll()}
+        class="w-full text-[10px] text-slate-600 hover:text-rose-400 text-left px-1">전체 초기화</button>
+    </div>
+  </aside>
 
-        <!-- 모드 -->
-        <div class="flex flex-wrap gap-2 mb-3">
-          <button class={modeCls(data.mode === 'category')} on:click={() => drawStore.setMode('category')}>
-            카테고리별 1개씩
-          </button>
-          <button class={modeCls(data.mode === 'all')} on:click={() => drawStore.setMode('all')}>
-            전체에서 뽑기
-          </button>
-        </div>
+  <!-- 오른쪽: 결과 박스 + 세부분류/태그 -->
+  <main class="flex-1 overflow-y-auto">
+    {#if isRandom}
+      <!-- 전체 랜덤 화면 -->
+      <div class="max-w-2xl mx-auto p-6 space-y-5">
+        <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+          <h2 class="text-sm font-bold text-amber-300 mb-1">🎲 전체 랜덤</h2>
+          <p class="text-[11px] text-slate-500 mb-4">분야·항목 상관없이 모든 태그에서 무작위로 뽑아요.</p>
 
-        <!-- 개수 (전체 모드) -->
-        {#if data.mode === 'all'}
-          <div class="flex items-center gap-3 mb-4 text-sm text-slate-400">
-            <button
-              class="w-7 h-7 rounded-full border border-slate-700 text-slate-200 hover:border-indigo-500 hover:text-indigo-300 transition"
-              on:click={() => drawStore.changeCount(-1)}>−</button
-            >
-            <span class="min-w-[1.5rem] text-center font-bold text-slate-100">{data.count}</span>
-            <button
-              class="w-7 h-7 rounded-full border border-slate-700 text-slate-200 hover:border-indigo-500 hover:text-indigo-300 transition"
-              on:click={() => drawStore.changeCount(1)}>+</button
-            >
-            <span>개 뽑기</span>
+          <div class="flex items-center gap-2 mb-4">
+            <button on:click={randomAll}
+              class="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-bold transition">🎲 뽑기</button>
+            <span class="flex items-center gap-1 ms-1">
+              <button on:click={() => (pickCount = Math.max(1, pickCount - 1))} class="w-7 h-7 rounded border border-slate-700 text-slate-400 hover:border-slate-500">−</button>
+              <span class="text-sm text-slate-300 w-6 text-center">{pickCount}</span>
+              <button on:click={() => (pickCount = Math.min(8, pickCount + 1))} class="w-7 h-7 rounded border border-slate-700 text-slate-400 hover:border-slate-500">＋</button>
+              <span class="text-[11px] text-slate-500">개</span>
+            </span>
           </div>
-        {/if}
 
-        <button class={btnCls} on:click={roll}>🎲 뽑기</button>
-
-        <!-- 결과 표시 -->
-        <div class="mt-4 rounded-xl border border-slate-700 bg-slate-950/60 p-4 min-h-[72px] flex items-center justify-center">
-          {#if !rolled}
-            <span class="text-sm text-slate-500">아직 뽑지 않았어요</span>
-          {:else if results.length === 0}
-            <span class="text-sm text-slate-500">단어가 없어요 — 아래에서 추가해 보세요</span>
-          {:else}
-            <div class="flex flex-wrap gap-3 justify-center">
-              {#each results as r}
-                <div class="flex flex-col items-center gap-1">
-                  {#if r.cat}
-                    <span class="text-[10px] tracking-wider text-slate-500">{r.cat}</span>
-                  {/if}
-                  <span
-                    class="px-3.5 py-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 text-indigo-200 font-bold"
-                  >
-                    {r.word}
-                  </span>
+          <div class="rounded-xl border border-slate-700 bg-slate-950/60 min-h-[80px] p-4">
+            {#if !rolled}
+              <p class="text-sm text-slate-600 text-center">아직 뽑지 않았어요</p>
+            {:else if results.length === 0}
+              <p class="text-sm text-slate-600 text-center">뽑을 태그가 없어요</p>
+            {:else}
+              <div class="flex flex-wrap gap-x-4 gap-y-2 justify-center">
+                {#each results as r}
+                  <p class="text-lg font-bold text-amber-300">{r.tag}</p>
+                {/each}
+              </div>
+              {#if results.some((r) => r.source)}
+                <div class="mt-4 pt-3 border-t border-slate-800">
+                  <p class="text-[10px] text-slate-600 mb-1">출처</p>
+                  <p class="text-[11px] text-slate-500 leading-relaxed">
+                    {results.map((r) => `${r.tag} (${r.source})`).join(' · ')}
+                  </p>
                 </div>
-              {/each}
+              {/if}
+            {/if}
+          </div>
+          {#if rolled && results.length > 0}
+            <button on:click={copyResult} class="mt-2 text-xs text-emerald-400 hover:underline">{copied ? '✓ 복사됨' : '📋 결과 복사'}</button>
+          {/if}
+        </section>
+      </div>
+
+    {:else if group}
+      <div class="max-w-2xl mx-auto p-6 space-y-5">
+
+        <!-- 뽑기 결과 박스 -->
+        <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+          <h2 class="text-sm font-bold text-indigo-300 mb-3">✨ 뽑기 결과</h2>
+
+          <!-- 두 칸: 카테고리별 1개씩 / 전체에서 N개 -->
+          <div class="grid grid-cols-2 gap-2 mb-3">
+            <button on:click={pickFromGroup}
+              class="px-3 py-2.5 rounded-xl border border-indigo-700 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-200 text-xs font-bold transition text-center">
+              🎲 {group.name} 전체<br><span class="text-[10px] font-normal text-slate-400">카테고리별 1개씩</span>
+            </button>
+            <div class="px-3 py-2 rounded-xl border border-slate-700 bg-slate-900/40 flex flex-col items-center justify-center gap-1.5">
+              <button on:click={pickNFromGroup} disabled={!group.subs.some((s) => s.enabled !== false && s.tags.length > 0)}
+                class="text-xs font-bold text-amber-300 hover:text-amber-200 disabled:opacity-30">
+                🎲 {group.name}에서 N개
+              </button>
+              <span class="flex items-center gap-1.5">
+                <button on:click={() => (pickCount = Math.max(1, pickCount - 1))} class="w-5 h-5 rounded border border-slate-700 text-slate-400 hover:border-slate-500 text-[11px]">−</button>
+                <span class="text-[11px] text-slate-300 w-6 text-center">{pickCount}개</span>
+                <button on:click={() => (pickCount = Math.min(8, pickCount + 1))} class="w-5 h-5 rounded border border-slate-700 text-slate-400 hover:border-slate-500 text-[11px]">＋</button>
+              </span>
             </div>
+          </div>
+
+          <div class="rounded-xl border border-slate-700 bg-slate-950/60 min-h-[72px] p-4 flex items-center justify-center">
+            {#if !rolled}
+              <span class="text-sm text-slate-600">아직 뽑지 않았어요</span>
+            {:else if results.length === 0}
+              <span class="text-sm text-slate-600">뽑을 태그가 없어요</span>
+            {:else}
+              <div class="flex flex-wrap gap-2 justify-center">
+                {#each results as r}
+                  <p class="text-lg font-bold text-amber-300 px-2">{r.tag}</p>
+                {/each}
+              </div>
+            {/if}
+          </div>
+          {#if rolled && results.length > 0}
+            <button on:click={copyResult} class="mt-2 text-xs text-emerald-400 hover:underline">{copied ? '✓ 복사됨' : '📋 결과 복사'}</button>
+          {/if}
+        </section>
+
+        <!-- 세부분류 가로 탭 + 선택된 항목의 태그 -->
+        <div>
+          <div class="flex flex-wrap items-center gap-1.5 mb-3">
+            {#each group.subs as sub (sub.id)}
+              <div class="inline-flex items-center rounded-lg border transition overflow-hidden
+                          {activeSubId === sub.id ? 'border-indigo-500 bg-indigo-500/10' : 'border-slate-700'}">
+                <button on:click={() => tagStore.toggleSub(group.id, sub.id)}
+                  class="ps-2 py-1.5 text-xs {sub.enabled !== false ? 'text-emerald-400' : 'text-slate-600'}"
+                  title="분야 전체 뽑기에 포함">{sub.enabled !== false ? '☑' : '☐'}</button>
+                <button on:click={() => (activeSubId = sub.id)}
+                  class="pe-3 ps-1 py-1.5 text-xs {activeSubId === sub.id ? 'text-indigo-200' : 'text-slate-400 hover:text-slate-200'}">
+                  {sub.name} <span class="text-slate-600">({sub.tags.length})</span>
+                </button>
+              </div>
+            {/each}
+            <button on:click={() => { const n = prompt('새 항목 이름 (예: 성격/태도)'); if (n && n.trim()) activeSubId = tagStore.addSub(group.id, n); }}
+              class="px-3 py-1.5 rounded-lg text-xs border border-dashed border-slate-700 text-slate-500 hover:border-indigo-500 hover:text-indigo-300 transition">＋ 항목</button>
+          </div>
+
+          {#if activeSub}
+            <section class="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-bold text-slate-100">{activeSub.name}</h3>
+                <div class="flex items-center gap-3">
+                  <button on:click={() => pickFromSub(activeSub)} disabled={activeSub.tags.length === 0}
+                    class="text-[11px] text-indigo-400 hover:text-indigo-300 disabled:opacity-30">🎲 이 항목에서 1개</button>
+                  <button on:click={() => { if (confirm(`「${activeSub.name}」 삭제할까요?`)) { tagStore.deleteSub(group.id, activeSub.id); activeSubId = null; } }}
+                    class="text-[11px] text-slate-600 hover:text-rose-400">항목 삭제</button>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap gap-1.5 mb-3">
+                {#each activeSub.tags as t (t)}
+                  <span class="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs text-slate-200">
+                    {t}
+                    <button on:click={() => tagStore.removeTag(group.id, activeSub.id, t)} class="text-slate-600 hover:text-rose-400">×</button>
+                  </span>
+                {/each}
+                {#if activeSub.tags.length === 0}<span class="text-[11px] text-slate-600">아직 태그가 없어요.</span>{/if}
+              </div>
+
+              <div class="flex gap-1.5">
+                <input value={tagInput[activeSub.id] ?? ''}
+                  on:input={(e) => { tagInput[activeSub.id] = e.currentTarget.value; tagInput = { ...tagInput }; }}
+                  on:keydown={(e) => e.key === 'Enter' && addTags(activeSub)}
+                  placeholder="태그 입력 (쉼표로 여러 개)"
+                  class="flex-1 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
+                <button on:click={() => addTags(activeSub)} class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm">추가</button>
+              </div>
+            </section>
+          {:else}
+            <p class="text-xs text-slate-600 text-center py-8 border border-dashed border-slate-800 rounded-2xl">위에서 항목을 골라주세요.</p>
           {/if}
         </div>
-      </section>
-
-      <!-- 단어 편집 -->
-      <section class={cardCls}>
-        <!-- 카테고리 탭 (체크 = 뽑기 포함 / 이름 클릭 = 편집) -->
-        <p class="text-[11px] text-slate-500 mb-2">✓ 체크한 카테고리만 뽑기에 사용돼요. 이름을 누르면 단어를 편집합니다.</p>
-        <div class="flex flex-wrap gap-2 mb-4">
-          {#each data.categories as cat, i}
-            <div
-              class="flex items-center rounded-lg text-xs border transition overflow-hidden {i === data.activeCat
-                ? 'border-indigo-500 bg-indigo-500/10'
-                : 'border-slate-700'}"
-            >
-              <button
-                on:click={() => drawStore.toggleEnabled(i)}
-                class="px-2 py-1.5 transition {cat.enabled !== false ? 'text-emerald-400' : 'text-slate-600'}"
-                title={cat.enabled !== false ? '뽑기에 포함됨 (클릭하면 제외)' : '제외됨 (클릭하면 포함)'}
-              >{cat.enabled !== false ? '☑' : '☐'}</button>
-              <button
-                on:click={() => drawStore.selectCategory(i)}
-                class="pe-3 py-1.5 transition {i === data.activeCat ? 'text-indigo-300' : 'text-slate-400 hover:text-slate-200'}"
-              >
-                {cat.name} ({cat.words.length})
-              </button>
-            </div>
-          {/each}
-          <button
-            on:click={addCategory}
-            class="px-3 py-1.5 rounded-lg text-xs border border-dashed border-slate-700 text-slate-500 hover:text-indigo-300 hover:border-indigo-500 transition"
-          >
-            + 카테고리
-          </button>
-        </div>
-
-        <!-- 액션 -->
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="text-sm font-bold text-indigo-400">
-            단어 <span class="text-slate-500 font-normal">({activeCat.words.length}개)</span>
-          </h2>
-          <div class="flex gap-3 text-[11px]">
-            <button class="text-indigo-300 hover:underline" on:click={renameCategory}>이름 변경</button>
-            <button class="text-rose-400 hover:underline" on:click={deleteCategory}>카테고리 삭제</button>
-            <button class="text-slate-400 hover:underline" on:click={resetAll}>전체 초기화</button>
-          </div>
-        </div>
-
-        <!-- 단어 태그 -->
-        {#if activeCat.words.length === 0}
-          <p class="text-center text-xs text-slate-500 py-4">단어를 추가해보세요</p>
-        {:else}
-          <div class="flex flex-wrap gap-2 mb-4">
-            {#each activeCat.words as w, i}
-              <span
-                class="flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full border border-slate-700 bg-slate-800/60 text-sm text-slate-200"
-              >
-                {w}
-                <button
-                  class="text-slate-500 hover:text-rose-400 transition leading-none"
-                  on:click={() => drawStore.removeWord(i)}
-                  aria-label="삭제">×</button
-                >
-              </span>
-            {/each}
-          </div>
-        {/if}
-
-        <!-- 입력 -->
-        <div class="flex gap-2">
-          <input
-            type="text"
-            bind:value={inputValue}
-            on:keydown={onInputKey}
-            maxlength="200"
-            placeholder="단어 입력 (쉼표로 여러 개 가능)"
-            class="flex-1 min-w-0 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-500 placeholder:text-slate-600"
-          />
-          <button
-            class="px-4 py-2.5 rounded-xl border border-slate-700 text-indigo-300 text-sm hover:border-indigo-500 transition whitespace-nowrap"
-            on:click={addWord}>추가</button
-          >
-        </div>
-        <p class="text-[11px] text-slate-600 mt-2">예: 거울, 녹슨 열쇠, 새벽 세시 → 한 번에 3개 추가</p>
-      </section>
-
-      {#if $currentSession}
-        <p class="text-center text-[11px] text-emerald-400">
-          🟢 세션 「{$currentSession.title}」 진행 중 — 뽑은 소재가 세션 로그에 기록됩니다
-        </p>
-      {/if}
-    </div>
+      </div>
+    {:else}
+      <div class="h-full flex items-center justify-center text-slate-500 text-sm">왼쪽에서 분야를 추가해 시작하세요.</div>
+    {/if}
   </main>
 </div>
