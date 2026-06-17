@@ -37,12 +37,6 @@
   let copied = false;
   let pickCount = 3;
 
-  function pickFromSub(sub: Sub) {
-    if (sub.tags.length === 0) return;
-    const shuffled = [...sub.tags].sort(() => Math.random() - 0.5);
-    results = shuffled.slice(0, Math.min(pickCount, shuffled.length)).map((t) => ({ tag: t, source: null }));
-    rolled = true;
-  }
   function pickFromGroup() {
     if (!group) return;
     // 왼쪽 칸: 체크된 항목마다 각각 1개씩 (캐릭터 완성용)
@@ -232,12 +226,8 @@
             <section class="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
               <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-bold text-slate-100">{activeSub.name}</h3>
-                <div class="flex items-center gap-3">
-                  <button on:click={() => pickFromSub(activeSub)} disabled={activeSub.tags.length === 0}
-                    class="text-[11px] text-indigo-400 hover:text-indigo-300 disabled:opacity-30">🎲 이 항목에서 1개</button>
-                  <button on:click={() => { if (confirm(`「${activeSub.name}」 삭제할까요?`)) { tagStore.deleteSub(group.id, activeSub.id); activeSubId = null; } }}
-                    class="text-[11px] text-slate-600 hover:text-rose-400">항목 삭제</button>
-                </div>
+                <button on:click={() => { if (confirm(`「${activeSub.name}」 삭제할까요?`)) { tagStore.deleteSub(group.id, activeSub.id); activeSubId = null; } }}
+                  class="text-[11px] text-slate-600 hover:text-rose-400">항목 삭제</button>
               </div>
 
               <div class="flex flex-wrap gap-1.5 mb-3">
