@@ -11,6 +11,8 @@
 import { CATEGORY_META, WORLD_CATEGORY_IDS } from '$lib/domain/categories';
 import { CATEGORY_ROUTE } from '$lib/services/worldNav';
 import DrawHelper from '$lib/features/draw/DrawHelper.svelte';
+import ThemeToggle from '$lib/components/layout/ThemeToggle.svelte';
+import '$lib/stores/theme'; // 테마 초기화(.dark 클래스 적용) 트리거
 
   type NavItem = {
     icon: string;
@@ -36,26 +38,18 @@ const WORLD_ITEMS: NavItem[] = WORLD_CATEGORY_IDS.map((id) => ({
 }));
 
 
-  // ✅ (2) 현재 경로가 /world 아래인지 판별 (이거 추가)
-  $: inWorld = $page.url.pathname.startsWith('/world');
-  $: inPlay = $page.url.pathname.startsWith('/play'); // ✅ 추가
+  // 자체 풀스크린 레이아웃 + 자체 뒤로가기를 가진 앱 화면들
+  // → 전역 프레임(사이드바/패딩) 없이 슬롯만 렌더 (이중 프레임 방지)
+  const FULLSCREEN_PREFIXES = ['/world', '/play', '/oracle', '/journal', '/timeline', '/visualizer', '/maps', '/gamebook', '/draw'];
+  $: fullScreen = FULLSCREEN_PREFIXES.some((p) => $page.url.pathname.startsWith(p));
 
   let drawerOpen = false;
   const toggleDrawer = () => (drawerOpen = !drawerOpen);
   const closeDrawer = () => (drawerOpen = false);
 
   onMount(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const apply = (isDark: boolean) => {
-      document.documentElement.classList.toggle('dark', isDark);
-    };
-    apply(mq.matches);
-
-    const handler = (event: MediaQueryListEvent) => apply(event.matches);
-    mq.addEventListener('change', handler);
-
+    // 테마는 theme 스토어가 관리(.dark 클래스 + localStorage). import만으로 초기 적용됨.
     initWorldDatabase().catch((err) => console.error('[SQLite] init error', err));
-    return () => mq.removeEventListener('change', handler);
   });
 </script>
 
@@ -65,7 +59,7 @@ const WORLD_ITEMS: NavItem[] = WORLD_CATEGORY_IDS.map((id) => ({
 </svelte:head>
 
 
-{#if inWorld || inPlay}
+{#if fullScreen}
  <div class="min-h-[100dvh] bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50">
     <slot />
   </div>
@@ -73,10 +67,11 @@ const WORLD_ITEMS: NavItem[] = WORLD_CATEGORY_IDS.map((id) => ({
   <div class="min-h-screen flex bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50">
     <!-- 좌측 고정 사이드바 (md 이상) -->
     <aside class="hidden md:flex md:flex-col md:w-64 border-r border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-950/40 backdrop-blur">
-      <div class="h-16 px-4 flex items-center border-b border-slate-200 dark:border-slate-800">
+      <div class="h-16 px-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
         <span class="text-lg font-semibold tracking-wide">
           GENESIS<span class="text-indigo-400">.MVP</span>
         </span>
+        <ThemeToggle />
       </div>
 
 
@@ -123,7 +118,7 @@ const WORLD_ITEMS: NavItem[] = WORLD_CATEGORY_IDS.map((id) => ({
           </span>
         </div>
 
-        <div class="w-8" aria-hidden="true"></div>
+        <ThemeToggle compact />
       </header>
 
       <!-- 모바일 드로어 -->

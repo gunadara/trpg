@@ -1,6 +1,9 @@
 /* Tailwind v4 메인 엔트리 */
 @import "tailwindcss";
 
+/* ✅ 다크모드를 .dark 클래스 기반으로 (수동 토글용). v4는 기본이 OS 미디어라 이게 필요함 */
+@custom-variant dark (&:where(.dark, .dark *));
+
 html, body, #svelte {
   min-height: 100%;
 }

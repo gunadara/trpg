@@ -36,6 +36,13 @@
   let rolled = false;
   let copied = false;
   let pickCount = 3;
+  let pickMode: 'each' | 'n' = 'each'; // 방식 선택: 카테고리별 1개씩 / 모아서 N개
+
+  // 선택된 방식으로 실행 (큰 뽑기 버튼)
+  function rollGroup() {
+    if (pickMode === 'each') pickFromGroup();
+    else pickNFromGroup();
+  }
 
   function pickFromGroup() {
     if (!group) return;
@@ -73,34 +80,47 @@
   }
 </script>
 
-<div class="h-screen flex bg-slate-950 text-slate-200 overflow-hidden">
+<div class="h-screen flex flex-col md:flex-row bg-slate-950 text-slate-200 overflow-hidden">
 
-  <!-- 왼쪽: 대분류 목록 (세계관 관리식 고정 사이드바) -->
-  <aside class="w-52 shrink-0 border-r border-slate-800 bg-slate-900/40 flex flex-col">
-    <div class="p-4 border-b border-slate-800">
-      <a href="/" class="text-xs text-slate-500 hover:text-indigo-400">← 홈으로</a>
-      <h1 class="text-base font-bold text-white mt-1">🃏 소재 뽑기</h1>
-      <p class="text-[10px] text-slate-500 mt-0.5">분야 · 항목 · 태그</p>
+  <!-- 왼쪽(PC)/상단(폰): 대분류 -->
+  <aside class="w-full md:w-52 shrink-0 border-b md:border-b-0 md:border-r border-slate-800 bg-slate-900/40 flex flex-col">
+    <!-- 헤더: 폰에선 한 줄(제목+초기화), PC에선 블록 -->
+    <div class="p-3 md:p-4 md:border-b border-slate-800 flex items-center justify-between md:block">
+      <div class="min-w-0">
+        <a href="/" class="text-xs text-slate-500 hover:text-indigo-400">← 홈으로</a>
+        <h1 class="text-base font-bold text-white md:mt-1 inline md:block ms-2 md:ms-0">🃏 소재 뽑기</h1>
+        <p class="hidden md:block text-[10px] text-slate-500 mt-0.5">분야 · 항목 · 태그</p>
+      </div>
+      <button on:click={() => confirm('모든 태그를 기본값으로 되돌릴까요?') && tagStore.resetAll()}
+        class="md:hidden shrink-0 text-[10px] text-slate-600 hover:text-rose-400 ms-2">초기화</button>
     </div>
-    <nav class="flex-1 overflow-y-auto p-2 space-y-1">
+
+    <!-- 네비: PC 세로 목록 / 폰 가로 스크롤 칩 -->
+    <nav class="flex md:flex-col md:flex-1 overflow-x-auto md:overflow-x-visible md:overflow-y-auto p-2 gap-1 md:gap-0 md:space-y-1">
       <!-- 전체 랜덤 (고정, 삭제 불가) -->
       <button on:click={() => (gid = RANDOM_ID)}
-        class="w-full text-left px-3 py-2.5 rounded-lg text-sm transition flex items-center gap-2
+        class="shrink-0 md:w-full text-left px-3 py-2 md:py-2.5 rounded-lg text-sm transition flex items-center gap-2 whitespace-nowrap
                {isRandom ? 'bg-amber-600/20 text-amber-200 border border-amber-600' : 'text-slate-300 border border-transparent hover:bg-slate-800/60'}">
         🎲 <span class="font-medium">전체 랜덤</span>
       </button>
-      <div class="h-px bg-slate-800 my-1"></div>
+      <div class="hidden md:block h-px bg-slate-800 my-1"></div>
 
       {#each groups as g (g.id)}
         <button on:click={() => (gid = g.id)}
-          class="w-full text-left px-3 py-2.5 rounded-lg text-sm transition flex items-center justify-between
+          class="shrink-0 md:w-full text-left px-3 py-2 md:py-2.5 rounded-lg text-sm transition flex items-center gap-2 md:justify-between whitespace-nowrap
                  {gid === g.id ? 'bg-indigo-600/20 text-indigo-200 border border-indigo-600' : 'text-slate-300 border border-transparent hover:bg-slate-800/60'}">
           <span class="font-medium">{g.name}</span>
           <span class="text-[10px] text-slate-500">{g.subs.length}</span>
         </button>
       {/each}
+
+      <!-- 폰 전용: 분야 추가 칩 (PC는 아래 입력칸 사용) -->
+      <button on:click={() => { const n = prompt('새 분야 이름'); if (n && n.trim()) gid = tagStore.addGroup(n); }}
+        class="md:hidden shrink-0 px-3 py-2 rounded-lg text-sm border border-dashed border-slate-700 text-slate-500 hover:border-indigo-500 whitespace-nowrap">＋ 분야</button>
     </nav>
-    <div class="p-2 border-t border-slate-800 space-y-2">
+
+    <!-- PC 전용 푸터: 새 분야 입력 + 전체 초기화 -->
+    <div class="hidden md:block p-2 border-t border-slate-800 space-y-2">
       <div class="flex gap-1">
         <input bind:value={newGroupName} on:keydown={(e) => e.key === 'Enter' && addGroup()}
           placeholder="새 분야" maxlength="16"
@@ -166,24 +186,36 @@
         <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
           <h2 class="text-sm font-bold text-indigo-300 mb-3">✨ 뽑기 결과</h2>
 
-          <!-- 두 칸: 카테고리별 1개씩 / 전체에서 N개 -->
-          <div class="grid grid-cols-2 gap-2 mb-3">
-            <button on:click={pickFromGroup}
-              class="px-3 py-2.5 rounded-xl border border-indigo-700 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-200 text-xs font-bold transition text-center">
-              🎲 {group.name} 전체<br><span class="text-[10px] font-normal text-slate-400">카테고리별 1개씩</span>
+          <!-- 방식 선택 (라디오처럼 하이라이트) → 폰 세로 스택 -->
+          <p class="text-[11px] text-slate-500 mb-2">방식 선택</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
+            <button on:click={() => (pickMode = 'each')}
+              class="px-3 py-3 rounded-xl border text-xs font-bold transition text-center
+                     {pickMode === 'each' ? 'border-indigo-500 bg-indigo-600/20 text-indigo-100' : 'border-slate-700 bg-slate-900/40 text-slate-400 hover:border-slate-500'}">
+              카테고리별 1개씩<br><span class="text-[10px] font-normal opacity-70">{group.name}의 항목마다 하나씩</span>
             </button>
-            <div class="px-3 py-2 rounded-xl border border-slate-700 bg-slate-900/40 flex flex-col items-center justify-center gap-1.5">
-              <button on:click={pickNFromGroup} disabled={!group.subs.some((s) => s.enabled !== false && s.tags.length > 0)}
-                class="text-xs font-bold text-amber-300 hover:text-amber-200 disabled:opacity-30">
-                🎲 {group.name}에서 N개
-              </button>
-              <span class="flex items-center gap-1.5">
-                <button on:click={() => (pickCount = Math.max(1, pickCount - 1))} class="w-5 h-5 rounded border border-slate-700 text-slate-400 hover:border-slate-500 text-[11px]">−</button>
-                <span class="text-[11px] text-slate-300 w-6 text-center">{pickCount}개</span>
-                <button on:click={() => (pickCount = Math.min(8, pickCount + 1))} class="w-5 h-5 rounded border border-slate-700 text-slate-400 hover:border-slate-500 text-[11px]">＋</button>
-              </span>
-            </div>
+            <button on:click={() => (pickMode = 'n')}
+              class="px-3 py-3 rounded-xl border text-xs font-bold transition text-center
+                     {pickMode === 'n' ? 'border-amber-500 bg-amber-600/20 text-amber-100' : 'border-slate-700 bg-slate-900/40 text-slate-400 hover:border-slate-500'}">
+              모아서 N개<br><span class="text-[10px] font-normal opacity-70">전체 태그에서 무작위로</span>
+            </button>
           </div>
+
+          <!-- N개 방식일 때만 개수 -->
+          {#if pickMode === 'n'}
+            <div class="flex items-center justify-center gap-2 mb-3">
+              <span class="text-[11px] text-slate-500">개수</span>
+              <button on:click={() => (pickCount = Math.max(1, pickCount - 1))} class="w-7 h-7 rounded border border-slate-700 text-slate-400 hover:border-slate-500">−</button>
+              <span class="text-sm text-slate-300 w-8 text-center">{pickCount}</span>
+              <button on:click={() => (pickCount = Math.min(8, pickCount + 1))} class="w-7 h-7 rounded border border-slate-700 text-slate-400 hover:border-slate-500">＋</button>
+            </div>
+          {/if}
+
+          <!-- 큰 뽑기 버튼 (선택된 방식으로 실행) -->
+          <button on:click={rollGroup} disabled={!group.subs.some((s) => s.enabled !== false && s.tags.length > 0)}
+            class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 disabled:hover:bg-indigo-600 text-white text-sm font-bold transition mb-3">
+            🎲 뽑기
+          </button>
 
           <div class="rounded-xl border border-slate-700 bg-slate-950/60 min-h-[72px] p-4 flex items-center justify-center">
             {#if !rolled}
