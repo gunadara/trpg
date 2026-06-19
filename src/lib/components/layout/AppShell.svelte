@@ -54,15 +54,15 @@
           link: 'text-slate-400 hover:text-indigo-300'
         }
       : {
-          root: 'bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-50',
-          border: 'border-slate-200 dark:border-slate-800',
-          bar: 'border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80',
-          side: 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950',
-          sub: 'text-slate-400 dark:text-slate-500',
-          navIdle: 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-900/50',
-          navActive: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-100',
-          burger: 'bg-slate-800 dark:bg-slate-100',
-          link: 'text-slate-500 hover:text-indigo-500'
+          root: 'bg-canvas text-ink',
+          border: 'border-line',
+          bar: 'border-line bg-surface/80',
+          side: 'border-line bg-surface',
+          sub: 'text-subtle',
+          navIdle: 'text-muted hover:bg-black/5 dark:hover:bg-white/5',
+          navActive: 'bg-primary/10 text-primary',
+          burger: 'bg-ink',
+          link: 'text-muted hover:text-primary'
         };
 </script>
 

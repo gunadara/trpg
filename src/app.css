@@ -1,8 +1,52 @@
 /* Tailwind v4 메인 엔트리 */
 @import "tailwindcss";
 
-/* ✅ 다크모드를 .dark 클래스 기반으로 (수동 토글용). v4는 기본이 OS 미디어라 이게 필요함 */
+/* ✅ 다크모드를 .dark 클래스 기반으로 (수동 토글용) */
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* ───────────────────────────────────────────────
+   색 토큰 — 라이트/다크 값을 여기 "한 곳"에서 관리.
+   컴포넌트는 bg-surface / text-ink / border-line 등
+   의미 이름만 씀. 토글하면 변수만 바뀌어 전 화면 반영.
+   ─────────────────────────────────────────────── */
+:root {
+  --canvas: #f8fafc;     /* 페이지 바깥 배경 (slate-50) */
+  --surface: #ffffff;    /* 카드/사이드바/헤더 */
+  --elevated: #ffffff;   /* 모달 등 떠 있는 면 */
+  --field: #ffffff;      /* 입력칸 */
+  --bubble: #f1f5f9;     /* 옅은 강조 블록 (slate-100) */
+  --line: #e2e8f0;       /* 테두리 (slate-200) */
+  --ink: #0f172a;        /* 본문 텍스트 (slate-900) */
+  --muted: #64748b;      /* 보조 텍스트 (slate-500) */
+  --subtle: #94a3b8;     /* 흐린 텍스트/placeholder (slate-400) */
+  --primary: #4f46e5;    /* 강조색 (indigo-600) */
+}
+.dark {
+  --canvas: #020617;     /* slate-950 */
+  --surface: #0f172a;    /* slate-900 */
+  --elevated: #1e293b;   /* slate-800 */
+  --field: #020617;      /* slate-950 */
+  --bubble: #1e293b;     /* slate-800 */
+  --line: #1e293b;       /* slate-800 */
+  --ink: #f1f5f9;        /* slate-100 */
+  --muted: #94a3b8;      /* slate-400 */
+  --subtle: #64748b;     /* slate-500 */
+  --primary: #6366f1;    /* indigo-500 */
+}
+
+/* 변수를 Tailwind 유틸로 노출 (inline = 런타임 .dark 전환 반영) */
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-elevated: var(--elevated);
+  --color-field: var(--field);
+  --color-bubble: var(--bubble);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-primary: var(--primary);
+}
 
 html, body, #svelte {
   min-height: 100%;
@@ -11,14 +55,6 @@ html, body, #svelte {
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-
-  /* ✅ 너가 원하는 “위쪽이랑 비슷한” 연한 배경 */
-  background: #f8fafc; /* slate-50 */
-  color: #0f172a;      /* slate-900 */
-}
-
-/* 다크모드도 쓰면 (html에 dark 클래스 붙는 구조라면) */
-.dark body {
-  background: #0f172a; /* slate-900 */
-  color: #f8fafc;      /* slate-50 */
+  background: var(--canvas);
+  color: var(--ink);
 }
