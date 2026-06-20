@@ -46,20 +46,20 @@
   $: if (book) { /* noop, 그냥 반응 */ }
 </script>
 
-<div class="h-screen flex flex-col bg-slate-950 text-slate-100">
-  <header class="shrink-0 p-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-3">
+<div class="h-screen flex flex-col bg-canvas text-ink">
+  <header class="shrink-0 p-4 bg-surface border-b border-line flex items-center justify-between gap-3">
     <div class="flex items-center gap-3 min-w-0">
-      <a href="/gamebook" class="text-slate-400 hover:text-white transition text-sm shrink-0">← 편집</a>
-      <h1 class="text-lg font-bold text-white truncate">▶ {book?.title ?? '게임북'}</h1>
+      <a href="/gamebook" class="text-muted hover:text-ink transition text-sm shrink-0">← 편집</a>
+      <h1 class="text-lg font-bold text-ink truncate">▶ {book?.title ?? '게임북'}</h1>
     </div>
     {#if started}
       <div class="flex items-center gap-3">
         <button
           on:click={() => (gmMode = !gmMode)}
-          class="text-xs transition {gmMode ? 'text-rose-400' : 'text-slate-500 hover:text-slate-300'}"
+          class="text-xs transition {gmMode ? 'text-rose-400' : 'text-muted hover:text-muted'}"
           title="GM 메모 보기 — 혼자/GM일 때만"
         >{gmMode ? '🔓 GM 모드' : '🔒 GM 모드'}</button>
-        <button on:click={restart} class="text-xs text-slate-400 hover:text-white">⟲ 처음부터</button>
+        <button on:click={restart} class="text-xs text-muted hover:text-ink">⟲ 처음부터</button>
       </div>
     {/if}
   </header>
@@ -68,8 +68,8 @@
     <div class="max-w-2xl mx-auto px-5 py-6">
 
       {#if !book || book.scenes.length === 0}
-        <div class="text-center text-slate-500 text-sm py-20">
-          플레이할 장면이 없어요. <a href="/gamebook" class="text-indigo-400 hover:underline">게임북 편집</a>에서 먼저 만들어 주세요.
+        <div class="text-center text-muted text-sm py-20">
+          플레이할 장면이 없어요. <a href="/gamebook" class="text-primary hover:underline">게임북 편집</a>에서 먼저 만들어 주세요.
         </div>
 
       {:else if !started}
@@ -77,34 +77,34 @@
         <div class="text-center py-16 space-y-5">
           <div class="text-5xl">📖</div>
           <h2 class="text-2xl font-bold">{book.title}</h2>
-          <p class="text-sm text-slate-500">장면 {book.scenes.length}개</p>
-          <button on:click={start} class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition">시작하기</button>
+          <p class="text-sm text-muted">장면 {book.scenes.length}개</p>
+          <button on:click={start} class="px-6 py-3 rounded-xl bg-primary hover:opacity-90 text-white font-bold transition">시작하기</button>
         </div>
 
       {:else}
         <!-- 지나온 경로 (흐릿하게 누적) -->
         {#each history as step (step.scene.id + (step.chosen ?? ''))}
           <div class="mb-5 opacity-60">
-            <p class="text-[15px] leading-relaxed text-slate-400 whitespace-pre-wrap">
+            <p class="text-[15px] leading-relaxed text-muted whitespace-pre-wrap">
               {#each parseMentions(step.scene.body) as seg}
-                {#if seg.type === 'text'}{seg.value}{:else}<span class="text-indigo-400/70">{seg.label}</span>{/if}
+                {#if seg.type === 'text'}{seg.value}{:else}<span class="text-primary/70">{seg.label}</span>{/if}
               {/each}
             </p>
             {#if step.chosen}
-              <p class="mt-2 text-sm text-indigo-400/80">▸ {step.chosen}</p>
+              <p class="mt-2 text-sm text-primary/80">▸ {step.chosen}</p>
             {/if}
-            <div class="border-b border-slate-800/60 mt-4"></div>
+            <div class="border-b border-line/60 mt-4"></div>
           </div>
         {/each}
 
         <!-- 현재 장면 -->
         {#if current}
           <div class="mb-6">
-            <p class="text-[17px] leading-relaxed text-slate-100 whitespace-pre-wrap">
+            <p class="text-[17px] leading-relaxed text-ink whitespace-pre-wrap">
               {#each parseMentions(current.body || '(본문이 비어 있습니다)') as seg}
                 {#if seg.type === 'text'}{seg.value}{:else}<button
                   on:click={() => (popupDocId = seg.docId)}
-                  class="text-indigo-300 underline decoration-dotted underline-offset-2 hover:text-indigo-200"
+                  class="text-primary underline decoration-dotted underline-offset-2 hover:text-primary"
                 >{seg.label}</button>{/if}
               {/each}
             </p>
@@ -125,26 +125,26 @@
                   disabled={!c.target}
                   class="w-full text-left px-4 py-3 rounded-xl border transition
                          {c.target
-                           ? 'border-slate-700 bg-slate-900/60 hover:border-indigo-500 hover:bg-indigo-500/5 text-slate-100'
-                           : 'border-slate-800 bg-slate-900/30 text-slate-600 cursor-not-allowed'}"
+                           ? 'border-line bg-surface/60 hover:border-primary hover:bg-primary/5 text-ink'
+                           : 'border-line bg-surface/30 text-subtle cursor-not-allowed'}"
                 >
-                  <span class="text-indigo-400 mr-1.5">▸</span>{c.text || '(빈 선택지)'}
-                  {#if !c.target}<span class="text-[10px] text-slate-600 ms-2">· 연결 안 됨</span>{/if}
+                  <span class="text-primary mr-1.5">▸</span>{c.text || '(빈 선택지)'}
+                  {#if !c.target}<span class="text-[10px] text-subtle ms-2">· 연결 안 됨</span>{/if}
                 </button>
               {/each}
             </div>
           {:else}
             <!-- 엔딩 -->
-            <div class="text-center py-8 space-y-3 border-t border-slate-800 mt-4">
-              <p class="text-sm text-slate-500">— 이야기의 끝 —</p>
-              <button on:click={restart} class="px-5 py-2.5 rounded-xl border border-slate-700 text-slate-300 text-sm hover:border-indigo-500 transition">처음부터 다시</button>
+            <div class="text-center py-8 space-y-3 border-t border-line mt-4">
+              <p class="text-sm text-muted">— 이야기의 끝 —</p>
+              <button on:click={restart} class="px-5 py-2.5 rounded-xl border border-line text-muted text-sm hover:border-primary transition">처음부터 다시</button>
             </div>
           {/if}
         {:else}
           <!-- 선택지가 미연결 장면으로 갔을 때 -->
           <div class="text-center py-8 space-y-3">
-            <p class="text-sm text-slate-500">이 길은 아직 이어지지 않았어요. (선택지에 연결된 장면이 없음)</p>
-            <button on:click={restart} class="px-5 py-2.5 rounded-xl border border-slate-700 text-slate-300 text-sm hover:border-indigo-500 transition">처음부터</button>
+            <p class="text-sm text-muted">이 길은 아직 이어지지 않았어요. (선택지에 연결된 장면이 없음)</p>
+            <button on:click={restart} class="px-5 py-2.5 rounded-xl border border-line text-muted text-sm hover:border-primary transition">처음부터</button>
           </div>
         {/if}
       {/if}
@@ -157,21 +157,21 @@
          on:click={() => (popupDocId = null)}
          on:keydown={(e) => e.key === 'Escape' && (popupDocId = null)}
          role="button" tabindex="-1">
-      <div class="w-full max-w-md max-h-[70vh] overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 space-y-3"
+      <div class="w-full max-w-md max-h-[70vh] overflow-y-auto rounded-2xl border border-line bg-surface p-5 space-y-3"
            on:click|stopPropagation role="dialog">
         <div class="flex items-center justify-between">
-          <h2 class="text-base font-bold text-white">{popupDoc.title || '제목 없음'}</h2>
-          <button on:click={() => (popupDocId = null)} class="text-slate-500 hover:text-slate-300 text-sm">✕</button>
+          <h2 class="text-base font-bold text-ink">{popupDoc.title || '제목 없음'}</h2>
+          <button on:click={() => (popupDocId = null)} class="text-muted hover:text-muted text-sm">✕</button>
         </div>
-        <p class="text-[10px] text-slate-500 uppercase tracking-wider">{popupDoc.category}</p>
+        <p class="text-[10px] text-muted uppercase tracking-wider">{popupDoc.category}</p>
         {#if popupDoc.summary}
-          <p class="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{popupDoc.summary}</p>
+          <p class="text-sm text-muted leading-relaxed whitespace-pre-wrap">{popupDoc.summary}</p>
         {/if}
         {#if popupDoc.content}
-          <p class="text-sm text-slate-400 leading-relaxed whitespace-pre-wrap border-t border-slate-800 pt-3">{popupDoc.content}</p>
+          <p class="text-sm text-muted leading-relaxed whitespace-pre-wrap border-t border-line pt-3">{popupDoc.content}</p>
         {/if}
         {#if !popupDoc.summary && !popupDoc.content}
-          <p class="text-xs text-slate-600">등록된 설명이 없어요.</p>
+          <p class="text-xs text-subtle">등록된 설명이 없어요.</p>
         {/if}
       </div>
     </div>

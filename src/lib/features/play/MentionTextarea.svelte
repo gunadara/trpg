@@ -68,23 +68,23 @@
     on:keydown={onKeydown}
     {rows}
     {placeholder}
-    class="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-[15px] text-slate-100 leading-relaxed outline-none focus:border-indigo-500 resize-y"
+    class="w-full rounded-xl border border-line bg-surface px-4 py-3 text-[15px] text-ink leading-relaxed outline-none focus:border-primary resize-y"
   ></textarea>
 
   {#if showMenu}
-    <div class="absolute z-30 left-3 right-3 mt-1 rounded-xl border border-slate-700 bg-slate-900 shadow-xl overflow-hidden">
-      <p class="px-3 py-1.5 text-[10px] text-slate-500 border-b border-slate-800">세계관 문서 연결 — ↑↓ Enter</p>
+    <div class="absolute z-30 left-3 right-3 mt-1 rounded-xl border border-line bg-surface shadow-xl overflow-hidden">
+      <p class="px-3 py-1.5 text-[10px] text-muted border-b border-line">세계관 문서 연결 — ↑↓ Enter</p>
       {#each results as doc, i (doc.id)}
         <button
           on:click={() => insertMention(doc)}
           class="w-full text-left px-3 py-2 text-sm transition flex items-center gap-2
-                 {i === activeIdx ? 'bg-indigo-600/20 text-indigo-200' : 'text-slate-300 hover:bg-slate-800'}"
+                 {i === activeIdx ? 'bg-primary/20 text-primary' : 'text-muted hover:bg-bubble'}"
         >
           <span class="truncate">{doc.title || '제목 없음'}</span>
-          <span class="text-[10px] text-slate-600 ms-auto shrink-0">{doc.category}</span>
+          <span class="text-[10px] text-subtle ms-auto shrink-0">{doc.category}</span>
         </button>
       {/each}
     </div>
   {/if}
-  <p class="text-[10px] text-slate-600 mt-1">@ 를 입력하면 세계관 문서를 연결할 수 있어요.</p>
+  <p class="text-[10px] text-subtle mt-1">@ 를 입력하면 세계관 문서를 연결할 수 있어요.</p>
 </div>
