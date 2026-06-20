@@ -58,3 +58,9 @@ body {
   background: var(--canvas);
   color: var(--ink);
 }
+
+/* 가로 스크롤 영역 스크롤바 숨김(주사위 줄 등) */
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}

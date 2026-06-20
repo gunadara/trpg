@@ -95,64 +95,10 @@
     </div>
   </div>
 
-  <!-- ✅ 오른쪽 컨트롤 줄 -->
-  <div class="flex items-center gap-2">
+  <!-- ✅ 오른쪽: 홈 + 테마만 (세계 관리 컨트롤은 드로어로 이동) -->
+  <div class="flex items-center gap-1.5 shrink-0">
+    <a href="/" class="px-2 py-1 rounded-lg text-[13px] text-slate-500 hover:text-indigo-500 border border-slate-200 dark:border-slate-700 transition" aria-label="홈으로">🏠</a>
     <ThemeToggle compact />
-    <a href="/" class="px-2 py-1 rounded-lg text-[11px] text-slate-500 hover:text-indigo-500 border border-slate-200 dark:border-slate-700 transition">🏠</a>
-    <!-- 세계 선택 -->
-    <select
-      class="rounded-lg border border-slate-200 dark:border-slate-700
-             bg-white/80 dark:bg-slate-900/60 px-2 py-1 text-[11px] outline-none
-             focus:ring-1 focus:ring-indigo-500/60 focus:border-indigo-500
-             text-slate-700 dark:text-slate-100"
-      bind:value={$currentWorldId}
-    >
-      {#each $worlds as w}
-        <option value={w.id}>{w.emoji} {w.name}</option>
-      {/each}
-    </select>
-
-    <!-- 이름 수정 -->
-    <button
-      type="button"
-      class="px-2.5 py-1 rounded-lg text-[11px]
-             border border-slate-200 dark:border-slate-700
-             bg-white/70 dark:bg-slate-900/60
-             text-slate-600 hover:text-slate-800 hover:bg-slate-50
-             dark:text-slate-200 dark:hover:bg-slate-800
-             transition"
-      on:click={handleRenameWorld}
-    >
-      이름
-    </button>
-
-    <!-- 새 세계 -->
-    <button
-      type="button"
-      class="px-2.5 py-1 rounded-lg text-[11px] font-medium
-             bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700
-             transition"
-      on:click={handleCreateWorld}
-    >
-      ＋ 새 세계
-    </button>
-
-    <!-- 디버그(DEV에서만) -->
-    {#if import.meta.env.DEV}
-      <button
-        type="button"
-        class="px-2.5 py-1 rounded-lg text-[11px]
-               border border-slate-200 dark:border-slate-700
-               bg-white/70 dark:bg-slate-900/60
-               hover:bg-slate-50 dark:hover:bg-slate-800
-               transition"
-        on:click={() => goto('/debug')}
-        aria-label="디버그"
-        title="디버그"
-      >
-        🛠️
-      </button>
-    {/if}
   </div>
 </header>
 
@@ -298,6 +244,39 @@
         >
           ✕
         </button>
+      </div>
+
+      <!-- 🔹 세계 선택/관리 (앱바에서 이동) -->
+      <div class="px-3 py-3 border-b border-slate-200 dark:border-slate-800 space-y-2">
+        <select
+          class="w-full rounded-lg border border-slate-200 dark:border-slate-700
+                 bg-white/80 dark:bg-slate-900/60 px-2 py-2 text-xs outline-none
+                 focus:ring-1 focus:ring-indigo-500/60 focus:border-indigo-500
+                 text-slate-700 dark:text-slate-100"
+          bind:value={$currentWorldId}
+        >
+          {#each $worlds as w}
+            <option value={w.id}>{w.emoji} {w.name}</option>
+          {/each}
+        </select>
+        <div class="flex gap-2">
+          <button
+            type="button"
+            class="flex-1 px-2 py-1.5 rounded-lg text-[11px] border border-slate-200 dark:border-slate-700
+                   text-slate-600 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800 transition"
+            on:click={handleRenameWorld}
+          >
+            이름 수정
+          </button>
+          <button
+            type="button"
+            class="flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium
+                   bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700 transition"
+            on:click={handleCreateWorld}
+          >
+            ＋ 새 세계
+          </button>
+        </div>
       </div>
 
       <nav class="flex-1 overflow-y-auto py-2">

@@ -145,27 +145,27 @@
 </script>
 <SessionFrame>
   <!-- ✅ HEADER 슬롯 -->
-<header slot="header" class="p-4 bg-surface border-b border-line flex justify-between items-center shadow-sm">
-  <div class="flex items-center gap-6">
+<header slot="header" class="p-3 md:p-4 bg-surface border-b border-line shadow-sm flex flex-col gap-3 md:flex-row md:justify-between md:items-center">
+  <div class="flex items-center gap-3 md:gap-6 min-w-0">
     <button
       on:click={() => history.back()}
-      class="group flex items-center gap-2 text-muted hover:text-primary transition"
+      class="group flex items-center gap-2 text-muted hover:text-primary transition shrink-0"
     >
       <span class="text-lg group-hover:-translate-x-1 transition-transform">←</span>
-      <span class="text-sm font-bold tracking-tight">세션 종료</span>
+      <span class="text-sm font-bold tracking-tight whitespace-nowrap">세션 종료</span>
     </button>
-    <div class="h-6 w-[1px] bg-bubble"></div>
+    <div class="hidden md:block h-6 w-[1px] bg-line"></div>
   <!-- 👇 이 부분 추가/수정 -->
     {#if $currentSession}
-      <div class="flex items-center gap-3">
-        <h1 class="text-lg font-extrabold tracking-tighter text-ink">
+      <div class="flex items-center gap-2 min-w-0 flex-wrap">
+        <h1 class="text-base md:text-lg font-extrabold tracking-tighter text-ink truncate">
           {$currentSession.title}
         </h1>
-        <span class="text-primary font-bold text-xs uppercase bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
+        <span class="shrink-0 text-primary font-bold text-xs uppercase bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
           진행 중
         </span>
         {#if $currentSession.storylineId}
-          <span class="text-purple-500 text-xs bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20">
+          <span class="shrink-0 text-purple-500 text-xs bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20">
             📖 스토리 연동
           </span>
         {/if}
@@ -173,18 +173,18 @@
     {:else}
       <button
         on:click={() => showSessionStart = true}
-        class="text-sm font-bold bg-primary text-white px-4 py-2 rounded-xl hover:bg-primary transition"
+        class="shrink-0 whitespace-nowrap text-sm font-bold bg-primary text-white px-4 py-2 rounded-xl hover:opacity-90 transition"
       >
         + 세션 시작
       </button>
     {/if}
   </div>
-  <!-- 기존 주사위 버튼들 그대로 유지 -->
-  <div class="flex items-center gap-1.5 bg-bubble p-1.5 rounded-xl border border-line">
+  <!-- 주사위: 폰에선 가로 스크롤(잘림 방지), md+에선 그대로 -->
+  <div class="flex items-center gap-1.5 bg-bubble p-1.5 rounded-xl border border-line overflow-x-auto md:overflow-visible no-scrollbar">
     {#each [4, 6, 8, 10, 12, 20, 100] as d}
       <button
         on:click={() => rollDice(d)}
-        class="w-10 h-10 flex items-center justify-center bg-surface hover:bg-primary hover:text-white rounded-lg text-[11px] font-bold transition-all active:scale-95 border border-line shadow-sm text-muted"
+        class="shrink-0 w-9 h-9 md:w-10 md:h-10 flex items-center justify-center bg-surface hover:bg-primary hover:text-white rounded-lg text-[11px] font-bold transition-all active:scale-95 border border-line shadow-sm text-muted"
       >
         D{d}
       </button>
