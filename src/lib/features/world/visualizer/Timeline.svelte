@@ -12,7 +12,7 @@
 
   // 규모별 강조 색 (EventEditor의 scale과 대응)
   const SCALE_STYLE: Record<string, string> = {
-    personal: 'border-slate-600 text-slate-400',
+    personal: 'border-line text-muted',
     local: 'border-sky-700 text-sky-400',
     national: 'border-amber-700 text-amber-400',
     world: 'border-rose-700 text-rose-400'
@@ -62,24 +62,24 @@
 <div class="max-w-2xl mx-auto pb-16">
 
   {#if dated.length === 0 && undated.length === 0}
-    <div class="h-64 flex items-center justify-center text-slate-500 border-2 border-dashed border-slate-800 rounded-3xl text-sm">
+    <div class="h-64 flex items-center justify-center text-muted border-2 border-dashed border-line rounded-3xl text-sm">
       아직 기록된 사건이 없습니다. 사건 문서를 작성해 보세요!
     </div>
   {/if}
 
   <!-- 시간순 연표 -->
   {#if dated.length > 0}
-    <ol class="relative border-s-2 border-slate-800 ms-4">
+    <ol class="relative border-s-2 border-line ms-4">
       {#each dated as ev, i (ev.doc.id)}
         <li class="mb-8 ms-6">
           <!-- 스파인 위의 점 -->
-          <span class="absolute flex items-center justify-center w-8 h-8 rounded-full -start-4 bg-slate-900 border-2 {ev.scaleCls.split(' ')[0]} text-base">
+          <span class="absolute flex items-center justify-center w-8 h-8 rounded-full -start-4 bg-surface border-2 {ev.scaleCls.split(' ')[0]} text-base">
             {ev.icon}
           </span>
 
           <!-- 연도 표시 (이전 사건과 연도가 다를 때만) -->
           {#if i === 0 || dated[i - 1].sortYear !== ev.sortYear}
-            <div class="text-xs font-bold text-indigo-400 mb-1.5 tracking-wider">
+            <div class="text-xs font-bold text-primary mb-1.5 tracking-wider">
               {ev.sortYear}년
             </div>
           {/if}
@@ -87,10 +87,10 @@
           <!-- 사건 카드 -->
           <button
             on:click={() => onEventClick(ev.doc.id)}
-            class="w-full text-left rounded-2xl border border-slate-800 bg-slate-900/70 hover:border-indigo-600 hover:bg-slate-900 transition p-4 group"
+            class="w-full text-left rounded-2xl border border-line bg-surface hover:border-primary hover:bg-bubble transition p-4 group"
           >
             <div class="flex items-center justify-between gap-2 mb-1">
-              <h3 class="font-bold text-slate-100 group-hover:text-indigo-300 transition text-sm">
+              <h3 class="font-bold text-ink group-hover:text-primary transition text-sm">
                 {ev.doc.title || '제목 없는 사건'}
               </h3>
               {#if ev.scaleLabel}
@@ -101,11 +101,11 @@
             </div>
 
             {#if ev.dateLabel}
-              <p class="text-[11px] text-slate-500 mb-1.5">🗓 {ev.dateLabel}</p>
+              <p class="text-[11px] text-muted mb-1.5">🗓 {ev.dateLabel}</p>
             {/if}
 
             {#if ev.doc.summary}
-              <p class="text-xs text-slate-400 leading-relaxed line-clamp-2">{ev.doc.summary}</p>
+              <p class="text-xs text-muted leading-relaxed line-clamp-2">{ev.doc.summary}</p>
             {/if}
           </button>
         </li>
@@ -116,19 +116,19 @@
   <!-- 시기 미정 사건 -->
   {#if undated.length > 0}
     <div class="mt-10">
-      <h2 class="text-xs font-bold text-slate-500 tracking-wider mb-3 ms-2">
+      <h2 class="text-xs font-bold text-muted tracking-wider mb-3 ms-2">
         🌫 시기 미정 — 사건 문서에 「정렬 연도」를 입력하면 연표에 배치됩니다
       </h2>
       <div class="space-y-2">
         {#each undated as ev (ev.doc.id)}
           <button
             on:click={() => onEventClick(ev.doc.id)}
-            class="w-full text-left rounded-xl border border-dashed border-slate-800 bg-slate-900/40 hover:border-slate-600 transition px-4 py-3 flex items-center gap-3"
+            class="w-full text-left rounded-xl border border-dashed border-line bg-surface/60 hover:border-primary/40 transition px-4 py-3 flex items-center gap-3"
           >
             <span class="text-base">{ev.icon}</span>
-            <span class="text-sm text-slate-300">{ev.doc.title || '제목 없는 사건'}</span>
+            <span class="text-sm text-ink">{ev.doc.title || '제목 없는 사건'}</span>
             {#if ev.dateLabel}
-              <span class="text-[11px] text-slate-600 ms-auto shrink-0">{ev.dateLabel}</span>
+              <span class="text-[11px] text-subtle ms-auto shrink-0">{ev.dateLabel}</span>
             {/if}
           </button>
         {/each}
