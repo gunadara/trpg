@@ -13,7 +13,7 @@
 </script>
 
 <!-- 레이아웃은 AppShell이, 기능은 <Oracle />가 담당 -->
-<AppShell title="🔮 오라클" subtitle="GM 없는 판정" tone="dark">
-  <a slot="actions" href="/play" class="text-xs text-indigo-400 hover:underline">🎲 세션으로</a>
+<AppShell title="🔮 오라클" subtitle="GM 없는 판정" tone="auto">
+  <a slot="actions" href="/play" class="text-xs text-primary hover:underline">🎲 세션으로</a>
   <Oracle />
 </AppShell>

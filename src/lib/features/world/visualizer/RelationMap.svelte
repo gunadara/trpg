@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import type { WorldDoc } from '$lib/domain/docs';
   import { DEFAULT_REL_TYPES, type RelType } from '$lib/stores/relationLabels';
+  import { theme } from '$lib/stores/theme';
 
   export let docs: WorldDoc[] = [];
   export let labels: Record<string, string> = {};   // `${from}->${to}` -> 관계 타입
@@ -36,12 +37,17 @@
     return () => { if (network) network.destroy(); };
   });
 
-  // docs나 labels가 바뀌면 다시 그림 (필터 토글 대응)
-  $: if (visReady && container) render(docs, labels, types);
+  // docs/labels/테마가 바뀌면 다시 그림
+  $: isDark = $theme === 'dark';
+  $: if (visReady && container) render(docs, labels, types, isDark);
 
-  function render(docList: WorldDoc[], labelMap: Record<string, string>, typeMap: Record<string, RelType>) {
+  function render(docList: WorldDoc[], labelMap: Record<string, string>, typeMap: Record<string, RelType>, dark: boolean) {
     const vis = (window as any).vis;
     if (!vis) return;
+
+    // 라벨 색: 다크=흰 글자+검은 외곽선 / 라이트=어두운 글자+흰 외곽선
+    const labelColor = dark ? '#ffffff' : '#1e293b';
+    const labelStroke = dark ? '#000000' : '#ffffff';
 
     const ids = new Set(docList.map((d) => d.id));
 
@@ -50,7 +56,7 @@
       label: doc.title,
       title: doc.summary || doc.title,
       color: COLORS[doc.category] || COLORS.default,
-      font: { color: '#ffffff', size: 14, strokeWidth: 2, strokeColor: '#000000' },
+      font: { color: labelColor, size: 14, strokeWidth: 2, strokeColor: labelStroke },
       shape: 'dot',
       size: doc.category === 'characters' ? 25 : 18
     }));
@@ -68,7 +74,7 @@
           arrows: 'to',
           label: rel ? rel.label : undefined,
           font: rel
-            ? { color: rel.color, size: 11, strokeWidth: 4, strokeColor: '#0f172a' }
+            ? { color: rel.color, size: 11, strokeWidth: 4, strokeColor: dark ? '#0f172a' : '#ffffff' }
             : undefined,
           color: rel
             ? { color: rel.color, opacity: 0.85, highlight: rel.color }
@@ -116,7 +122,7 @@
   }
 </script>
 
-<div class="relative w-full h-full bg-[#0f172a] overflow-hidden rounded-2xl border border-slate-800">
+<div class="relative w-full h-full bg-surface overflow-hidden rounded-2xl border border-line">
   <div bind:this={container} class="w-full h-full"></div>
 
   <!-- 범례 (Legend) -->
