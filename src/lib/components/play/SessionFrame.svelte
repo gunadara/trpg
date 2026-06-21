@@ -12,7 +12,7 @@
 </script>
 
 <div
-  class="h-[100dvh] min-h-0 grid grid-rows-[auto_minmax(0,1fr)_auto]
+  class="h-full min-h-0 grid grid-rows-[auto_minmax(0,1fr)_auto]
          bg-canvas text-ink overflow-hidden
          font-sans selection:bg-indigo-100 selection:text-indigo-900"
   style={`--left:${leftWidth}; --right:${rightWidth};`}
