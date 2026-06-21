@@ -130,7 +130,7 @@
     <div class="flex items-center justify-between mb-1">
       <a href="/" class="text-[11px] text-slate-500 hover:text-indigo-500 transition">← 홈으로</a>
       <div class="flex items-center gap-1">
-        <a href="/oracle" class="text-[11px] text-indigo-400 hover:underline">🔮 오라클</a>
+        <a href="/play/oracle" class="text-[11px] text-indigo-400 hover:underline">🔮 오라클</a>
         <ThemeToggle compact />
       </div>
     </div>

@@ -21,14 +21,9 @@ import '$lib/stores/theme'; // 테마 초기화(.dark 클래스 적용) 트리�
   };
 
   const navItems: NavItem[] = [
-    { icon: '🌏', label: '세계관 관리', href: '/world' },
-    { icon: '📜', label: '세계관 연표', href: '/timeline' },
-    { icon: '🕸️', label: '관계도', href: '/visualizer' },
-    { icon: '🗺️', label: '지도', href: '/maps' },
-    { icon: '🎲', label: '세션 플레이', href: '/play' },
-    { icon: '🔮', label: '오라클', href: '/oracle' },
-    { icon: '🎰', label: '소재 뽑기', href: '/draw' },
-    { icon: '📖', label: '플레이 저널', href: '/journal' }
+    { icon: '🌏', label: '세계관', href: '/world' },
+    { icon: '🎲', label: '플레이', href: '/play/journal' },
+    { icon: '🎰', label: '소재 뽑기', href: '/draw' }
   ];
 
 const WORLD_ITEMS: NavItem[] = WORLD_CATEGORY_IDS.map((id) => ({

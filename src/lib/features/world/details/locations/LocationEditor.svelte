@@ -98,7 +98,7 @@
       <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 ml-1">🗺️ 이 장소의 지도</label>
       {#if value.mapImage}
         <div class="flex gap-3">
-          <a href="/maps" class="text-[11px] text-indigo-400 hover:underline">지도 페이지에서 핀 찍기 →</a>
+          <a href="/world/map" class="text-[11px] text-indigo-400 hover:underline">지도 페이지에서 핀 찍기 →</a>
           <button type="button" class="text-[11px] text-rose-400 hover:underline" on:click={removeMap}>제거</button>
         </div>
       {/if}

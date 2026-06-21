@@ -41,8 +41,8 @@
         ← 홈으로
       </a>
       <div class="flex items-center gap-3">
-        <a href="/timeline" class="text-xs text-indigo-400 hover:underline">📜 연표</a>
-        <a href="/visualizer" class="text-xs text-indigo-400 hover:underline">🕸️ 관계도</a>
+        <a href="/world/timeline" class="text-xs text-indigo-400 hover:underline">📜 연표</a>
+        <a href="/world/graph" class="text-xs text-indigo-400 hover:underline">🕸️ 관계도</a>
       </div>
     </div>
     <h1 class="text-xl md:text-2xl font-semibold mb-1">

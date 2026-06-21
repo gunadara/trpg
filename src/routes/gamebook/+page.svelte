@@ -77,7 +77,7 @@
 <div class="h-screen flex flex-col bg-canvas text-ink">
   <header class="shrink-0 p-4 bg-surface border-b border-line flex items-center justify-between gap-3">
     <div class="flex items-center gap-3 min-w-0">
-      <a href="/journal" class="text-muted hover:text-ink transition text-sm shrink-0">← 저널</a>
+      <a href="/play/journal" class="text-muted hover:text-ink transition text-sm shrink-0">← 저널</a>
       <h1 class="text-lg font-bold text-ink">📓 게임북 만들기</h1>
     </div>
     {#if book}
