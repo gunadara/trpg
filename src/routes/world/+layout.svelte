@@ -40,6 +40,16 @@
 
   let navOpen = false;
 
+  // 세계관 "뷰" 탭 (문서 카테고리와 별개 — 같은 세계를 다른 방식으로 봄)
+  const VIEW_ITEMS = [
+    { href: '/world/timeline', icon: '📜', label: '연표' }
+    // 다음 배치: 관계도(/world/graph), 지도(/world/map)
+  ];
+  function goHref(href: string) {
+    goto(href);
+    navOpen = false;
+  }
+
   // 현재 라우트 경로
   $: currentPath = $page.url.pathname;
 
@@ -190,6 +200,21 @@
               </button>
             </li>
           {/each}
+          <li class="pt-2 mt-2 border-t border-slate-200 dark:border-slate-800">
+            <p class="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">뷰</p>
+          </li>
+          {#each VIEW_ITEMS as v}
+            <li>
+              <button
+                type="button"
+                class={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-left transition ${currentPath.startsWith(v.href) ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-100' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-900/50'}`}
+                on:click={() => goHref(v.href)}
+              >
+                <span class="text-base leading-none">{v.icon}</span>
+                <span class="font-medium">{v.label}</span>
+              </button>
+            </li>
+          {/each}
         <!-- ✅ 디버그 버튼: Drawer 안에 -->
         <li class="pt-2 mt-2 border-t border-slate-200 dark:border-slate-800">
           <button
@@ -296,6 +321,21 @@
               >
                 <span class="text-base leading-none">{item.icon}</span>
                 <span class="font-medium">{item.label}</span>
+              </button>
+            </li>
+          {/each}
+          <li class="pt-2 mt-2 border-t border-slate-200 dark:border-slate-800">
+            <p class="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">뷰</p>
+          </li>
+          {#each VIEW_ITEMS as v}
+            <li>
+              <button
+                type="button"
+                class={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-left transition ${currentPath.startsWith(v.href) ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-100' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-900/50'}`}
+                on:click={() => goHref(v.href)}
+              >
+                <span class="text-base leading-none">{v.icon}</span>
+                <span class="font-medium">{v.label}</span>
               </button>
             </li>
           {/each}
