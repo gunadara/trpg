@@ -42,8 +42,9 @@
 
   // 세계관 "뷰" 탭 (문서 카테고리와 별개 — 같은 세계를 다른 방식으로 봄)
   const VIEW_ITEMS = [
-    { href: '/world/timeline', icon: '📜', label: '연표' }
-    // 다음 배치: 관계도(/world/graph), 지도(/world/map)
+    { href: '/world/timeline', icon: '📜', label: '연표' },
+    { href: '/world/graph', icon: '🕸️', label: '관계도' }
+    // 다음 배치: 지도(/world/map)
   ];
   function goHref(href: string) {
     goto(href);
