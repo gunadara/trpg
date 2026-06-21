@@ -1,10 +1,3 @@
-<script context="module">
-  /**
-   * [필수] SSR 비활성화
-   */
-  export const ssr = false;
-</script>
-
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';

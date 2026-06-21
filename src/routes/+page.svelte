@@ -1,8 +1,3 @@
-<script context="module">
-  /** [중요] SSR 비활성화 — 클라이언트 스토어(localStorage/SQLite)를 메인에서 직접 사용 */
-  export const ssr = false;
-</script>
-
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
