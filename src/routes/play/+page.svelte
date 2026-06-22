@@ -20,6 +20,11 @@
   let sessionTitle = '';
   let selectedStoryline = '';
 
+  function endSession() {
+    if (!confirm('세션을 종료할까요? 저널 기록은 사라집니다. (필요하면 먼저 백업하세요)')) return;
+    currentSession.end();
+  }
+
   /**
    * 데이터 로드 및 초기화
    */
@@ -139,16 +144,8 @@
 <SessionFrame>
   <!-- ✅ HEADER 슬롯 -->
 <header slot="header" class="p-3 md:p-4 bg-surface border-b border-line shadow-sm flex flex-col gap-3 md:flex-row md:justify-between md:items-center">
-  <div class="flex items-center gap-3 md:gap-6 min-w-0">
-    <button
-      on:click={() => history.back()}
-      class="group flex items-center gap-2 text-muted hover:text-primary transition shrink-0"
-    >
-      <span class="text-lg group-hover:-translate-x-1 transition-transform">←</span>
-      <span class="text-sm font-bold tracking-tight whitespace-nowrap">세션 종료</span>
-    </button>
-    <div class="hidden md:block h-6 w-[1px] bg-line"></div>
-  <!-- 👇 이 부분 추가/수정 -->
+  <div class="flex items-center gap-3 md:gap-4 min-w-0">
+  <!-- 세션 제목/상태 (탭바가 네비 담당 → 뒤로가기 제거) -->
     {#if $currentSession}
       <div class="flex items-center gap-2 min-w-0 flex-wrap">
         <h1 class="text-base md:text-lg font-extrabold tracking-tighter text-ink truncate">
@@ -162,6 +159,12 @@
             📖 스토리 연동
           </span>
         {/if}
+        <button
+          on:click={endSession}
+          class="shrink-0 text-xs text-rose-500 dark:text-rose-400 hover:underline whitespace-nowrap ms-1"
+        >
+          세션 종료
+        </button>
       </div>
     {:else}
       <button

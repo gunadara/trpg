@@ -19,6 +19,13 @@
   ];
   const catById = Object.fromEntries(categories.map((c) => [c.id, c]));
 
+  // 홈 메인 런처 = 3대 기능 (모바일에서 카테고리보다 실용적)
+  const features = [
+    { name: '세계관', icon: '🌏', href: '/world', desc: '인물·장소·연표·관계도·지도' },
+    { name: '플레이', icon: '🎲', href: '/play/journal', desc: '세션·저널·오라클·전투' },
+    { name: '소재 뽑기', icon: '🎰', href: '/draw', desc: '아이디어 무작위 뽑기' }
+  ];
+
   let allDocs: WorldDoc[] = [];
   let isLoaded = false;
 
@@ -61,7 +68,7 @@
         <h1 class="text-3xl sm:text-4xl font-black tracking-tighter italic leading-none text-ink">
           GENE<span class="text-primary">SIS</span> <span class="text-subtle text-xl sm:text-2xl font-light not-italic uppercase tracking-normal">Engine</span>
         </h1>
-        <p class="text-muted text-[10px] font-bold mt-1 uppercase tracking-[0.2em]">Master World Builder v0.4</p>
+        <p class="text-muted text-[10px] font-bold mt-1 uppercase tracking-[0.2em]">Master World Builder v0.7</p>
       </div>
 
       <a
@@ -72,23 +79,19 @@
       </a>
     </header>
 
-    <!-- 카테고리 런처 -->
+    <!-- 기능 런처 (세계관 / 플레이 / 소재뽑기) -->
     <section class="shrink-0 mb-8">
-      <div class="flex items-center justify-between mb-3">
-        <h2 class="text-[11px] font-black uppercase tracking-[0.2em] text-subtle">카테고리</h2>
-        <span class="text-[11px] font-bold text-muted">전체 {totalCount}개 문서</span>
-      </div>
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-        {#each categories as cat}
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {#each features as f}
           <a
-            href={`/world/${cat.id}`}
-            class="group bg-surface border border-line hover:border-primary/40 rounded-2xl p-4 flex flex-col gap-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
+            href={f.href}
+            class="group bg-surface border border-line hover:border-primary/40 rounded-2xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
           >
-            <div class="flex items-center justify-between">
-              <span class="text-2xl group-hover:scale-110 transition-transform">{cat.icon}</span>
-              <span class="text-[11px] font-black text-muted bg-bubble rounded-full px-2 py-0.5 min-w-[1.5rem] text-center">{countOf(cat.id)}</span>
+            <span class="text-3xl group-hover:scale-110 transition-transform shrink-0">{f.icon}</span>
+            <div class="min-w-0">
+              <h3 class="text-base font-black tracking-tight text-ink group-hover:text-primary transition-colors">{f.name}</h3>
+              <p class="text-[11px] text-muted font-medium leading-tight mt-0.5">{f.desc}</p>
             </div>
-            <span class="text-sm font-black tracking-tight text-ink group-hover:text-primary transition-colors">{cat.name}</span>
           </a>
         {/each}
       </div>
@@ -107,7 +110,7 @@
           <div class="h-full flex flex-col items-center justify-center py-16 text-center">
             <div class="w-20 h-20 bg-bubble rounded-full flex items-center justify-center text-4xl border border-line shadow-sm grayscale opacity-30 mb-5">📝</div>
             <p class="text-lg font-black uppercase tracking-widest text-subtle">No Data</p>
-            <p class="text-xs mt-2 font-medium text-muted">위 카테고리에서 첫 문서를 만들어 보세요.</p>
+            <p class="text-xs mt-2 font-medium text-muted">세계관에서 첫 문서를 만들어 보세요.</p>
           </div>
         {:else}
           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -148,7 +151,7 @@
           Storage: Client-Stored
         </div>
       </div>
-      <div class="opacity-60 italic font-medium text-muted">Genesis Core v0.4</div>
+      <div class="opacity-60 italic font-medium text-muted">Genesis Core v0.7</div>
     </footer>
   </main>
 </div>
