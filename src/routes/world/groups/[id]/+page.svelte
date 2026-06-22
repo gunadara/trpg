@@ -6,6 +6,7 @@
   import { browser } from '$app/environment';
   import DocEditLayout from '$lib/components/edit/DocEditLayout.svelte';
   import DetailSwitcher from '$lib/features/world/details/DetailSwitcher.svelte';
+  import RelationsPanel from '$lib/features/world/details/RelationsPanel.svelte';
 
 
   import {
@@ -416,6 +417,8 @@ async function handleThumbnailChange(event: Event) {
           </ul>
        </section>
       {/if}
+
+      <RelationsPanel docId={selectedDoc.id} />
 
     {:else}
       <div class="m-auto text-center text-sm text-slate-500 dark:text-slate-400">
