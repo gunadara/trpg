@@ -7,6 +7,11 @@ const TYPES_KEY = 'genesis.relation_types';
 
 export type RelType = { label: string; color: string; custom?: boolean };
 
+// 관계 선의 방향: to = from→to, from = to→from(반대), both = 양방향
+export type RelDir = 'to' | 'from' | 'both';
+// 관계 한 줄: 종류 + 방향 (b안 — 깔끔한 객체 구조)
+export type RelEntry = { type: string; dir: RelDir };
+
 // 기본 관계 종류
 export const DEFAULT_REL_TYPES: Record<string, RelType> = {
   ally:   { label: '동맹', color: '#34d399' },
@@ -74,12 +79,26 @@ export const relTypes = createTypesStore();
 /* ───── 선별 라벨 (`from->to` -> 관계 종류 id) ───── */
 
 function createLabelsStore() {
-  const { subscribe, set, update } = writable<Record<string, string>>({});
+  const { subscribe, set, update } = writable<Record<string, RelEntry>>({});
 
-  function persist(map: Record<string, string>) {
+  function persist(map: Record<string, RelEntry>) {
     if (typeof window !== 'undefined') {
       localStorage.setItem(LABELS_KEY, JSON.stringify(map));
     }
+  }
+
+  // 구버전(값이 문자열=종류id) → 신버전({type, dir}) 자동 변환
+  function migrate(raw: Record<string, any>): Record<string, RelEntry> {
+    const out: Record<string, RelEntry> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (typeof v === 'string') {
+        out[k] = { type: v, dir: 'to' };
+      } else if (v && typeof v === 'object' && typeof v.type === 'string') {
+        const dir: RelDir = v.dir === 'both' || v.dir === 'from' ? v.dir : 'to';
+        out[k] = { type: v.type, dir };
+      }
+    }
+    return out;
   }
 
   return {
@@ -89,19 +108,38 @@ function createLabelsStore() {
       if (typeof window === 'undefined') return;
       try {
         const raw = localStorage.getItem(LABELS_KEY);
-        if (raw) set(JSON.parse(raw));
+        if (raw) {
+          const migrated = migrate(JSON.parse(raw));
+          set(migrated);
+          persist(migrated); // 변환 결과를 저장(다음부턴 신버전)
+        }
       } catch (e) {
         console.error('[relationLabels] load 실패:', e);
       }
     },
 
-    // type에 null을 주면 라벨 제거
-    setLabel(fromId: string, toId: string, type: string | null) {
+    // type에 null을 주면 관계 제거. dir 생략 시 기존 방향 유지(없으면 'to')
+    setLabel(fromId: string, toId: string, type: string | null, dir?: RelDir) {
       update((map) => {
         const key = `${fromId}->${toId}`;
         const next = { ...map };
-        if (type) next[key] = type;
-        else delete next[key];
+        if (type) {
+          const prevDir = next[key]?.dir ?? 'to';
+          next[key] = { type, dir: dir ?? prevDir };
+        } else {
+          delete next[key];
+        }
+        persist(next);
+        return next;
+      });
+    },
+
+    // 방향만 변경 (관계가 이미 있을 때)
+    setDir(fromId: string, toId: string, dir: RelDir) {
+      update((map) => {
+        const key = `${fromId}->${toId}`;
+        if (!map[key]) return map;
+        const next = { ...map, [key]: { ...map[key], dir } };
         persist(next);
         return next;
       });

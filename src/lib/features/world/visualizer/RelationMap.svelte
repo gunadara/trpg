@@ -1,14 +1,24 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { WorldDoc } from '$lib/domain/docs';
-  import { DEFAULT_REL_TYPES, type RelType } from '$lib/stores/relationLabels';
+  import { DEFAULT_REL_TYPES, type RelType, type RelEntry } from '$lib/stores/relationLabels';
   import { theme } from '$lib/stores/theme';
 
   export let docs: WorldDoc[] = [];
-  export let labels: Record<string, string> = {};   // `${from}->${to}` -> 관계 타입
+  export let labels: Record<string, RelEntry> = {};   // `${from}->${to}` -> { type, dir }
   export let types: Record<string, RelType> = DEFAULT_REL_TYPES;
   export let onNodeClick: (id: string) => void = () => {};
   export let onEdgeClick: (from: string, to: string) => void = () => {};
+  export let linkMode = false;                          // 선 긋기 모드
+  export let onLinkPair: (from: string, to: string) => void = () => {};
+
+  let linkFrom: string | null = null;                  // 선 긋기: 먼저 탭한 노드
+
+  // 모드를 끄면 선택 초기화
+  $: if (!linkMode) {
+    linkFrom = null;
+    if (network) network.unselectAll();
+  }
 
   let container: HTMLDivElement;
   let network: any = null;
@@ -41,7 +51,7 @@
   $: isDark = $theme === 'dark';
   $: if (visReady && container) render(docs, labels, types, isDark);
 
-  function render(docList: WorldDoc[], labelMap: Record<string, string>, typeMap: Record<string, RelType>, dark: boolean) {
+  function render(docList: WorldDoc[], labelMap: Record<string, RelEntry>, typeMap: Record<string, RelType>, dark: boolean) {
     const vis = (window as any).vis;
     if (!vis) return;
 
@@ -62,26 +72,41 @@
     }));
 
     const edges: any[] = [];
+    const pushEdge = (key: string, from: string, to: string) => {
+      const entry = labelMap[key];
+      const rel = entry ? (typeMap[entry.type] ?? null) : null;
+      const dir = entry?.dir ?? 'to';
+      edges.push({
+        id: key,
+        from,
+        to,
+        arrows: { to: dir === 'to' || dir === 'both', from: dir === 'from' || dir === 'both' },
+        label: rel ? rel.label : undefined,
+        font: rel
+          ? { color: rel.color, size: 11, strokeWidth: 4, strokeColor: dark ? '#0f172a' : '#ffffff' }
+          : undefined,
+        color: rel
+          ? { color: rel.color, opacity: 0.85, highlight: rel.color }
+          : { color: '#475569', opacity: 0.4 },
+        width: rel ? 2 : 1
+      });
+    };
+
+    // 멘션 기반 선
     docList.forEach((doc) => {
       (doc.mentions ?? []).forEach((targetId) => {
         if (!ids.has(targetId)) return; // 필터로 숨은 노드로 가는 선은 생략
-        const key = `${doc.id}->${targetId}`;
-        const rel = labelMap[key] ? (typeMap[labelMap[key]] ?? null) : null;
-        edges.push({
-          id: key,
-          from: doc.id,
-          to: targetId,
-          arrows: 'to',
-          label: rel ? rel.label : undefined,
-          font: rel
-            ? { color: rel.color, size: 11, strokeWidth: 4, strokeColor: dark ? '#0f172a' : '#ffffff' }
-            : undefined,
-          color: rel
-            ? { color: rel.color, opacity: 0.85, highlight: rel.color }
-            : { color: '#475569', opacity: 0.4 },
-          width: rel ? 2 : 1
-        });
+        pushEdge(`${doc.id}->${targetId}`, doc.id, targetId);
       });
+    });
+
+    // 수동 관계: 멘션이 없어도 라벨이 있으면 선을 그림
+    const seen = new Set(edges.map((e) => e.id));
+    Object.keys(labelMap).forEach((key) => {
+      if (seen.has(key)) return;
+      const [from, to] = key.split('->');
+      if (!ids.has(from) || !ids.has(to)) return;
+      pushEdge(key, from, to);
     });
 
     const data = { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
@@ -112,7 +137,24 @@
 
     network.on('click', (params: any) => {
       if (params.nodes.length > 0) {
-        onNodeClick(params.nodes[0]);
+        const nodeId = params.nodes[0];
+        if (linkMode) {
+          // 선 긋기: 첫 탭 = 출발, 둘째 탭 = 도착 → 연결
+          if (!linkFrom) {
+            linkFrom = nodeId;
+            network.selectNodes([nodeId]);
+          } else if (linkFrom === nodeId) {
+            linkFrom = null;
+            network.unselectAll();
+          } else {
+            const f = linkFrom;
+            linkFrom = null;
+            network.unselectAll();
+            onLinkPair(f, nodeId);
+          }
+        } else {
+          onNodeClick(nodeId);
+        }
       } else if (params.edges.length > 0) {
         // 선 클릭 → 관계 라벨 편집
         const [from, to] = String(params.edges[0]).split('->');
