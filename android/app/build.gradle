@@ -1,5 +1,13 @@
 apply plugin: 'com.android.application'
 
+// CI에서 주입(없으면 로컬 기본값) — 업데이트되려면 versionCode가 매번 커져야 함
+def ciVersionCode = (System.getenv("VERSION_CODE") ?: "1").toInteger()
+def ciVersionName = System.getenv("VERSION_NAME") ?: "1.0"
+
+// 릴리스 서명 키(시크릿로 주입). 키가 있을 때만 서명 설정 적용
+def ksPath = System.getenv("KEYSTORE_FILE")
+def ksValid = ksPath != null && !ksPath.isEmpty() && file(ksPath).exists() && file(ksPath).length() > 0
+
 android {
     namespace = "com.sia.genesis"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +15,8 @@ android {
         applicationId "com.sia.genesis"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode ciVersionCode
+        versionName ciVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +24,24 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (ksValid) {
+                storeFile file(ksPath)
+                storePassword System.getenv("KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KEY_ALIAS")
+                keyPassword System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // 서명 키가 주입됐을 때만 release 서명 사용
+            if (ksValid) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

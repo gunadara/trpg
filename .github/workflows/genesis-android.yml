@@ -55,27 +55,39 @@ jobs:
       - name: Sync Capacitor (Android)
         run: npx cap sync android
 
-      - name: Build Android APK (Debug)
+      # 릴리스 서명 키스토어 복원 (GitHub Secret KEYSTORE_BASE64 → 파일)
+      - name: Decode Release Keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
+
+      - name: Build Android APK (Release, signed)
         working-directory: android
+        env:
+          # versionCode는 빌드마다 커지는 run_number 사용 → 업데이트 인식됨
+          VERSION_CODE: ${{ github.run_number }}
+          # 태그면 태그명, 아니면 0.0.런넘버
+          VERSION_NAME: ${{ github.ref_type == 'tag' && github.ref_name || format('0.0.{0}', github.run_number) }}
+          KEYSTORE_FILE: ${{ runner.temp }}/release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug
+          ./gradlew :app:assembleRelease
 
       # 1. Actions 탭에 임시 저장 (백업용)
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: genesis-app-${{ github.run_number }}
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
-      # 2. GitHub Release(태그 페이지)에 APK 파일 영구 등록
-      # push된 것이 '태그'일 때만 실행됩니다.
+      # 2. GitHub Release(태그 페이지)에 APK 파일 영구 등록 (태그일 때만)
       - name: Create GitHub Release
         if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: android/app/build/outputs/apk/debug/app-debug.apk
+          files: android/app/build/outputs/apk/release/app-release.apk
           tag_name: ${{ github.ref_name }}
           name: GENESIS Build ${{ github.ref_name }}
           body: |
