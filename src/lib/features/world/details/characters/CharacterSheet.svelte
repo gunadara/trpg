@@ -10,9 +10,11 @@
   if (!value.mp) value.mp = { current: 10, max: 10 };
   if (!value.stats) value.stats = { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 };
   
-  // 인벤토리 & 스킬 초기화
+  // 인벤토리 & 스킬 초기화 (+ 이름 없는 빈 항목 청소)
   if (!value.inventory) value.inventory = []; // { name, count, refId? }
+  else value.inventory = value.inventory.filter((it: any) => it && (String(it.name ?? '').trim() || it.refId));
   if (!value.skills) value.skills = [];       // { name, refId? }
+  else value.skills = value.skills.filter((it: any) => it && (String(it.name ?? '').trim() || it.refId));
 
   // ---------------------------------------------------------
   // 🔍 검색 및 연결 로직 (아이템 & 스킬 공용)

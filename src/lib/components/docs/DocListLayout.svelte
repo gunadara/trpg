@@ -15,14 +15,14 @@
 
 <section class="h-full flex flex-col">
   <header class="mb-4 flex items-center justify-between gap-3">
-    <div>
-      <h1 class="text-2xl font-semibold mb-1">{#if icon}{icon} {/if}{title}</h1>
-      {#if subtitle}<p class="text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>{/if}
+    <div class="min-w-0">
+      <h1 class="text-2xl font-semibold mb-1 truncate">{#if icon}{icon} {/if}{title}</h1>
+      {#if subtitle}<p class="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{subtitle}</p>{/if}
     </div>
 
     <button
       type="button"
-      class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium
+      class="shrink-0 whitespace-nowrap inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium
              bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700
              shadow-sm transition disabled:opacity-60"
       on:click={onPrimary}
