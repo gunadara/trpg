@@ -7,6 +7,7 @@
   import DocEditLayout from '$lib/components/edit/DocEditLayout.svelte';
   import DetailSwitcher from '$lib/features/world/details/DetailSwitcher.svelte';
   import RelationsPanel from '$lib/features/world/details/RelationsPanel.svelte';
+  import BlockEditor from '$lib/features/world/details/BlockEditor.svelte';
 
 
   import {
@@ -419,6 +420,8 @@ async function handleThumbnailChange(event: Event) {
       {/if}
 
       <RelationsPanel docId={selectedDoc.id} />
+
+      <BlockEditor doc={selectedDoc} on:change={() => saveDoc(selectedDoc)} />
 
     {:else}
       <div class="m-auto text-center text-sm text-slate-500 dark:text-slate-400">
