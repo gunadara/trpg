@@ -40,6 +40,19 @@
     saveDoc(selectedDoc);
   }
 
+  // ── 시트 선택 (TRPG 시트 / 자유 블록 시트) — 데이터는 각자 보관 ──
+  let activeSheet: 'trpg' | 'blocks' = 'trpg';
+  $: if (selectedDoc) {
+    activeSheet = ((selectedDoc.attributes as any)?.activeSheet as 'trpg' | 'blocks') ?? 'trpg';
+  }
+  function setSheet(mode: 'trpg' | 'blocks') {
+    if (!selectedDoc) return;
+    if (!selectedDoc.attributes) selectedDoc.attributes = {};
+    (selectedDoc.attributes as any).activeSheet = mode;
+    activeSheet = mode;
+    saveDoc(selectedDoc);
+  }
+
   // 언급/백링크
     $: mentionedDocs = selectedDoc
     ? (selectedDoc.mentions ?? [])
@@ -309,12 +322,33 @@ async function handleThumbnailChange(event: Event) {
         </div>
       </div>
 
-      <!-- ✅ [NEW] 2. 스킬 상세 설정 UI (여기에 추가됨!) -->
-      <!-- 제목/요약(위)과 본문(아래) 사이 -->
-      <DetailSwitcher 
-        category={CATEGORY} 
-        bind:data={selectedDoc.attributes} 
-      />
+      <!-- 시트 영역: TRPG 시트 / 자유 블록 시트 선택 (데이터는 각자 보관) -->
+      <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
+        <div class="flex items-center gap-1 px-2 py-1.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
+          <span class="text-xs font-bold text-slate-500 dark:text-slate-400 me-1">시트</span>
+          <button type="button" on:click={() => setSheet('trpg')}
+            class="px-2.5 py-1 rounded-lg text-xs font-medium transition
+                   {activeSheet === 'trpg' ? 'bg-indigo-500 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}">
+            🎲 TRPG 시트
+          </button>
+          <button type="button" on:click={() => setSheet('blocks')}
+            class="px-2.5 py-1 rounded-lg text-xs font-medium transition
+                   {activeSheet === 'blocks' ? 'bg-indigo-500 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}">
+            🧩 자유 시트
+          </button>
+        </div>
+
+        <div class="p-2">
+          {#if activeSheet === 'trpg'}
+            <DetailSwitcher
+              category={CATEGORY}
+              bind:data={selectedDoc.attributes}
+            />
+          {:else}
+            <BlockEditor doc={selectedDoc} on:change={() => saveDoc(selectedDoc)} />
+          {/if}
+        </div>
+      </div>
 
       <!-- 본문 -->
       <div class="flex-1 flex flex-col gap-2">
@@ -420,8 +454,6 @@ async function handleThumbnailChange(event: Event) {
       {/if}
 
       <RelationsPanel docId={selectedDoc.id} />
-
-      <BlockEditor doc={selectedDoc} on:change={() => saveDoc(selectedDoc)} />
 
     {:else}
       <div class="m-auto text-center text-sm text-slate-500 dark:text-slate-400">
