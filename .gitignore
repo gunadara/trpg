@@ -38,3 +38,5 @@ ios/App/*xcuserdata/
 .vscode/
 .idea/
 *.log
+release.keystore
+keystore.base64.txt
