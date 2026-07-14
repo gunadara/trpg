@@ -1,6 +1,9 @@
 <script lang="ts">
   import { browser } from '$app/environment';
-  import { listDocs, patchDoc, searchDocsByTitle, getDocById } from '$lib/stores/docStore';
+  import { listDocs, patchDoc, searchDocsByTitle, getDocById, createBlankDoc } from '$lib/stores/docStore';
+  import { generateTerrain, generateRegion, type Terrain } from '$lib/features/world/maps/generator/terrain';
+  import { buildRivers, clipRiversToWindow } from '$lib/features/world/maps/generator/rivers';
+  import { renderTerrainSvg, svgToDataUrl } from '$lib/features/world/maps/generator/renderSvg';
   import { gotoDoc } from '$lib/services/worldNav';
   import MapViewer, { type MapPin } from '$lib/features/world/maps/MapViewer.svelte';
   import MapGenerator from '$lib/features/world/maps/generator/MapGenerator.svelte';
@@ -13,6 +16,81 @@
     showGenerator = false;
     refresh++;
     selectedId = docId; // 방금 생성한 지도 바로 열기
+  }
+
+  /* ── 지역 뽑기 (세계 지도에서 사각 구역 드래그 → 정합 지역 지도) ── */
+  let selectRegionMode = false;
+  let regionBusy = false;
+  let regionName = '';
+  let regionPreview: {
+    url: string;
+    win: { x: number; y: number; w: number; h: number };
+    terrain: Terrain;
+    rivers: [number, number][][];
+    worldOpts: Record<string, unknown>;
+  } | null = null;
+
+  // 지역 뽑기 가능 = 생성된 세계 지도만 (업로드 지도·지역 지도는 불가)
+  $: canExtract = !!(selected && (selected.attributes as any)?.mapGen && (selected.attributes as any).mapGen.type !== 'region');
+
+  function handleSelectRect(rPct: { x: number; y: number; w: number; h: number }) {
+    if (!selected) return;
+    const mg = (selected.attributes as any).mapGen;
+    const W = mg.wide ? 1600 : 1000;
+    const H = mg.wide ? 1120 : 700;
+    // % → 세계 좌표, 경계 클램프
+    let x = (rPct.x / 100) * W, y = (rPct.y / 100) * H;
+    let w = (rPct.w / 100) * W, h = (rPct.h / 100) * H;
+    x = Math.max(0, Math.min(W - 10, x));
+    y = Math.max(0, Math.min(H - 10, y));
+    w = Math.max(10, Math.min(W - x, w));
+    h = Math.max(10, Math.min(H - y, h));
+    const win = { x, y, w, h };
+    const worldOpts = {
+      seed: mg.seed,
+      seaLevel: mg.seaLevel ?? 0.42,
+      continents: mg.continents ?? 1,
+      islands: mg.islands ?? 0.3,
+      width: W,
+      height: H,
+      cellCount: mg.cellCount ?? 2500
+    };
+
+    selectRegionMode = false;
+    regionBusy = true;
+    setTimeout(() => {
+      try {
+        // 강 2패스: 세계 해상도 강을 지역에 얹는다 (정합)
+        const worldT = generateTerrain(worldOpts);
+        const worldRivers = buildRivers(worldT);
+        const terrain = generateRegion(worldOpts, win, 3500);
+        const rivers = clipRiversToWindow(worldRivers, win, terrain.width, terrain.height);
+        const svg = renderTerrainSvg(terrain, { scale: 'region', riversOverride: rivers });
+        regionName = '';
+        regionPreview = { url: svgToDataUrl(svg), win, terrain, rivers, worldOpts };
+      } finally {
+        regionBusy = false;
+      }
+    }, 30);
+  }
+
+  function saveRegion() {
+    if (!regionPreview || !selected) return;
+    const { terrain, rivers, win, worldOpts } = regionPreview;
+    const name = regionName.trim();
+    const svg = renderTerrainSvg(terrain, { scale: 'region', riversOverride: rivers, title: name });
+    const doc = createBlankDoc('locations');
+    patchDoc(doc.id, {
+      title: name || `지역 지도 (${(selected as any).title || '세계'})`,
+      attributes: {
+        mapImage: svgToDataUrl(svg),
+        pins: [],
+        mapGen: { ...worldOpts, type: 'region', window: win, parentId: selected.id, stage: 9 }
+      }
+    });
+    regionPreview = null;
+    refresh++;
+    selectedId = doc.id;
   }
 
   // 지도 이미지를 가진 장소 문서들
@@ -109,6 +187,18 @@
       🌍 생성
     </button>
 
+    {#if canExtract}
+      <button
+        on:click={() => { selectRegionMode = !selectRegionMode; if (selectRegionMode) editMode = false; }}
+        class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition
+               {selectRegionMode
+                 ? 'bg-emerald-600 text-white'
+                 : 'border border-line text-muted hover:border-emerald-500 hover:text-emerald-500'}"
+      >
+        {selectRegionMode ? '✅ 선택 끝' : '🔍 지역 뽑기'}
+      </button>
+    {/if}
+
     {#if selected}
       <button
         on:click={() => (editMode = !editMode)}
@@ -129,6 +219,8 @@
         image={(selected.attributes as any).mapImage}
         {pins}
         editable={editMode}
+        selectable={selectRegionMode}
+        onSelectRect={handleSelectRect}
         pinStyle={(selected.attributes as any).mapGen ? 'antique' : 'default'}
         onAddPin={handleAddPin}
         onPinClick={handlePinClick}
@@ -137,6 +229,42 @@
       <div class="h-full flex flex-col items-center justify-center gap-2 text-muted border-2 border-dashed border-line rounded-3xl text-sm text-center px-6">
         <p>등록된 지도가 없어요.</p>
         <p class="text-xs">장소 문서를 열고 「🗺️ 지역 상세 정보」에서 지도 이미지를 올리면 여기에 나타나요.</p>
+      </div>
+    {/if}
+
+    <!-- 지역 뽑기: 계산 중 -->
+    {#if regionBusy}
+      <div class="absolute inset-0 bg-black/40 flex items-center justify-center z-20 pointer-events-none">
+        <div class="px-4 py-2 rounded-xl bg-surface border border-line text-xs font-bold text-ink">🗺️ 지역 지도 생성 중…</div>
+      </div>
+    {/if}
+
+    <!-- 지역 뽑기: 미리보기 + 저장 -->
+    {#if regionPreview}
+      <div class="absolute inset-0 bg-black/50 flex items-end md:items-center justify-center p-4 z-20 overflow-y-auto"
+           on:click={() => (regionPreview = null)}
+           on:keydown={(e) => e.key === 'Escape' && (regionPreview = null)}
+           role="button" tabindex="-1">
+        <div class="w-full max-w-md rounded-2xl border border-line bg-surface p-5 space-y-3"
+             on:click|stopPropagation role="dialog">
+          <h2 class="text-sm font-bold text-ink">🔍 지역 지도 미리보기</h2>
+          <div class="rounded-xl overflow-hidden border border-line bg-canvas">
+            <img src={regionPreview.url} alt="지역 지도 미리보기" class="w-full block" />
+          </div>
+          <input
+            type="text"
+            bind:value={regionName}
+            placeholder="지역 이름 (지도 제목으로 들어가요, 비워도 됨)"
+            class="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-xs text-ink outline-none focus:border-primary"
+          />
+          <div class="flex gap-2">
+            <button on:click={saveRegion} class="flex-1 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:opacity-90 transition">📍 장소 문서로 저장</button>
+            <button on:click={() => (regionPreview = null)} class="px-4 py-2.5 rounded-xl border border-line text-xs font-bold text-muted hover:text-ink transition">취소</button>
+          </div>
+          <p class="text-[10px] text-subtle leading-relaxed">
+            세계 지도와 지형·산맥·강이 이어지는 지역 지도예요. 저장하면 원본 세계 지도와 연결돼요.
+          </p>
+        </div>
       </div>
     {/if}
 

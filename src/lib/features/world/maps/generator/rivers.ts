@@ -75,3 +75,37 @@ export function smoothOpen(line: Pt[], iterations = 2): Pt[] {
   }
   return pts;
 }
+
+/** 세계 좌표계 강들을 창(win)으로 잘라 출력 캔버스 좌표로 변환.
+ *  창을 스치는 강은 경계에서 잘리고, 경계 밖으로 나가는 지점은 테두리까지 이어줌 */
+export function clipRiversToWindow(
+  rivers: River[],
+  win: { x: number; y: number; w: number; h: number },
+  outW: number,
+  outH: number
+): River[] {
+  const x1 = win.x + win.w, y1 = win.y + win.h;
+  const inside = (p: Pt) => p[0] >= win.x && p[0] <= x1 && p[1] >= win.y && p[1] <= y1;
+  const clamp = (p: Pt): Pt => [
+    Math.min(x1, Math.max(win.x, p[0])),
+    Math.min(y1, Math.max(win.y, p[1]))
+  ];
+  const tx = (p: Pt): Pt => [((p[0] - win.x) / win.w) * outW, ((p[1] - win.y) / win.h) * outH];
+
+  const out: River[] = [];
+  for (const r of rivers) {
+    let run: Pt[] = [];
+    for (let i = 0; i < r.length; i++) {
+      if (inside(r[i])) {
+        if (run.length === 0 && i > 0) run.push(clamp(r[i - 1])); // 들어오는 지점 테두리 연결
+        run.push(r[i]);
+      } else if (run.length > 0) {
+        run.push(clamp(r[i])); // 나가는 지점 테두리 연결
+        if (run.length >= 2) out.push(run.map(tx));
+        run = [];
+      }
+    }
+    if (run.length >= 2) out.push(run.map(tx));
+  }
+  return out;
+}

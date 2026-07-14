@@ -1,34 +1,47 @@
-// 자체 지도 생성기 — 지형 (3·4단계 개정판)
-// 변경: 다중 대륙 지원, 가장자리 잘림 방지 마진, 강 생성용 이웃 정보 노출
+// 자체 지도 생성기 — 지형 (정합 연동 개편)
+// 구조: buildWorldDef(시드 → 연속 지형 함수) + sampleTerrain(창 → 셀 표본)
+// 같은 시드의 세계에서 임의 사각 구역을 잘라 고해상도로 다시 찍으면
+// 대륙·산맥·바이옴이 일치하는 지역 지도가 나온다 (구글맵 줌인 원리)
 import { Delaunay } from 'd3-delaunay';
 import { createNoise2D } from 'simplex-noise';
 
 export type TerrainOptions = {
-  seed: string;        // 같은 시드 = 같은 지도
-  width?: number;      // 기본 1000
-  height?: number;     // 기본 700
-  cellCount?: number;  // 기본 2500
-  seaLevel?: number;   // 0~1, 높을수록 바다 많음 (기본 0.42)
+  seed: string;        // 같은 시드 = 같은 세계
+  width?: number;      // 세계 좌표계 크기 (기본 1000×700)
+  height?: number;
+  cellCount?: number;  // 표본 셀 수 (기본 2500)
+  seaLevel?: number;   // 0~1 (기본 0.42)
   continents?: number; // 대륙 수 1~5 (기본 1)
   islands?: number;    // 섬 밀도 0~1 (기본 0.3)
-  scale?: 'world' | 'region'; // region = 나라/지방 지도 (땅이 화면을 채움)
+  scale?: 'world' | 'region'; // region = 단독 나라 지도 프리셋
+};
+
+export type WorldWindow = { x: number; y: number; w: number; h: number }; // 세계 좌표계 사각 구역
+
+export type WorldDef = {
+  width: number;   // 세계 좌표계 크기
+  height: number;
+  seaLevel: number;
+  seed: string;
+  /** 세계 좌표 (x,y) → 높이 0~1. 연속 함수라 아무 지점이나 물어볼 수 있음 */
+  heightAt: (x: number, y: number) => number;
+  /** 세계 좌표 (x,y) → 습도 0~1 */
+  moistureAt: (x: number, y: number) => number;
 };
 
 export type Terrain = {
-  width: number;
+  width: number;   // 출력 캔버스 크기 (렌더 좌표계)
   height: number;
   polygons: [number, number][][];
-  /** 셀 중심점 (강 경로용) */
   centers: [number, number][];
-  /** 셀별 이웃 셀 인덱스 (강 경로용) */
   neighbors: number[][];
   heights: number[];
-  /** 셀별 습도 0~1 (바이옴용) */
   moisture: number[];
   seaLevel: number;
   seed: string;
 };
 
+/* ── 시드 유틸 ── */
 function hashSeed(seed: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < seed.length; i++) {
@@ -47,11 +60,11 @@ function mulberry32(a: number): () => number {
   };
 }
 
-function makeFbm(rand: () => number) {
+function makeFbm(rand: () => number, octaves = 3) {
   const noise = createNoise2D(rand);
   return (x: number, y: number): number => {
     let v = 0, amp = 0.55, freq = 1, sum = 0;
-    for (let o = 0; o < 3; o++) {
+    for (let o = 0; o < octaves; o++) {
       v += noise(x * freq, y * freq) * amp;
       sum += amp;
       amp *= 0.5;
@@ -61,19 +74,22 @@ function makeFbm(rand: () => number) {
   };
 }
 
-export function generateTerrain(opts: TerrainOptions): Terrain {
+/* ═══ 1부: 세계 정의 — 시드에서 연속 지형 함수 만들기 ═══ */
+export function buildWorldDef(opts: TerrainOptions): WorldDef {
   const width = opts.width ?? 1000;
   const height = opts.height ?? 700;
-  const cellCount = opts.cellCount ?? 2500;
   const seaLevel = opts.seaLevel ?? 0.42;
   const nCont = Math.max(1, Math.min(5, opts.continents ?? 1));
   const islands = Math.max(0, Math.min(1, opts.islands ?? 0.3));
   const region = opts.scale === 'region';
 
+  // ⚠️ 난수 순서 고정 구간 — 여기 순서를 바꾸면 같은 시드의 세계가 달라짐
   const rand = mulberry32(hashSeed(opts.seed));
-  const fbm = makeFbm(rand);
+  const fbmElev = makeFbm(rand);          // 큰 지형
+  const fbmDetail = makeFbm(rand, 2);     // 잔 디테일 (지역 줌에서 해안 굴곡 담당)
+  const fbmMoist = makeFbm(rand);         // 습도
 
-  /* 대륙 중심점 뿌리기 — 서로 최대한 떨어지게 (best-of-N 샘플링) */
+  /* 대륙 중심점 */
   const contCenters: [number, number][] = [];
   for (let c = 0; c < nCont; c++) {
     let best: [number, number] = [0, 0];
@@ -91,20 +107,17 @@ export function generateTerrain(opts: TerrainOptions): Terrain {
     }
     contCenters.push(best);
   }
-  // 대륙 반경: 개수 많을수록 하나가 작아짐
   const contR = ((region ? 0.78 : 0.52) * Math.min(width, height)) / Math.sqrt(nCont);
 
-  /* 산맥(능선) — 대륙마다 1~2개, 꺾인 선분으로. 판 경계처럼 길쭉하게 */
+  /* 산맥(능선) */
   type Ridge = { pts: [number, number][]; w: number };
   const ridges: Ridge[] = [];
   for (const [ccx, ccy] of contCenters) {
     const nRidge = 1 + (rand() < 0.45 ? 1 : 0);
     for (let r = 0; r < nRidge; r++) {
-      // 시작점: 중심에서 약간 비켜서 (한가운데 돔 방지)
       const offA = rand() * Math.PI * 2;
       const offD = (0.1 + rand() * 0.35) * contR;
       const p0: [number, number] = [ccx + Math.cos(offA) * offD, ccy + Math.sin(offA) * offD];
-      // 방향 + 중간에 한 번 꺾임
       const a1 = rand() * Math.PI * 2;
       const a2 = a1 + (rand() - 0.5) * 1.1;
       const len = contR * (0.55 + rand() * 0.5);
@@ -114,12 +127,11 @@ export function generateTerrain(opts: TerrainOptions): Terrain {
     }
   }
 
-  /* 섬 씨앗 — 대륙 반경 1.1~1.6배 거리에 작은 봉우리 */
+  /* 섬 씨앗 */
   const isles: { x: number; y: number; r: number }[] = [];
   const isleCount = Math.round(islands * 5 * nCont);
-  const safe = 0.12; // 캔버스 가장자리 12% 안쪽만 허용
+  const safe = 0.12;
   for (let k = 0; k < isleCount; k++) {
-    // 캔버스 안에 떨어질 때까지 재시도 (최대 10회)
     for (let attempt = 0; attempt < 10; attempt++) {
       const [ccx, ccy] = contCenters[Math.floor(rand() * nCont)];
       const a = rand() * Math.PI * 2;
@@ -141,13 +153,67 @@ export function generateTerrain(opts: TerrainOptions): Terrain {
     return Math.hypot(px - (a[0] + t * dx), py - (a[1] + t * dy));
   };
 
-  /* 점 뿌리기 + Lloyd 완화 1회 */
+  const freq = (region ? 3.2 : 1.8) / Math.max(width, height);
+  const freqD = 24 / Math.max(width, height); // 디테일 파장 ≈ 세계폭/24
+  const freqM = 2.6 / Math.max(width, height);
+  const margin = (region ? 0.035 : 0.07) * Math.min(width, height);
+
+  const heightAt = (x: number, y: number): number => {
+    const n01 = fbmElev(x * freq, y * freq) * 0.5 + 0.5;
+    const detail = fbmDetail(x * freqD, y * freqD); // -1~1, 소진폭
+
+    let mask = 0;
+    for (const [cx, cy] of contCenters) {
+      const d = Math.hypot(x - cx, y - cy) / contR;
+      mask = Math.max(mask, Math.exp(-d * d * 1.5));
+    }
+    for (const isl of isles) {
+      const d = Math.hypot(x - isl.x, y - isl.y) / isl.r;
+      mask = Math.max(mask, Math.exp(-d * d * 1.6) * 0.95);
+    }
+
+    let ridge = 0;
+    for (const rg of ridges) {
+      for (let sgi = 0; sgi < rg.pts.length - 1; sgi++) {
+        const d = distToSeg(x, y, rg.pts[sgi], rg.pts[sgi + 1]) / rg.w;
+        ridge = Math.max(ridge, Math.exp(-d * d * 2));
+      }
+    }
+
+    const edgeD = Math.min(x, y, width - x, height - y) / margin;
+    const e = Math.max(0, Math.min(1, edgeD));
+    const edgeMask = e * e * (3 - 2 * e);
+
+    const h = (n01 * 0.5 + detail * 0.05 + mask * 0.52 - 0.13 + ridge * 0.38) * edgeMask;
+    return Math.max(0, Math.min(1, h));
+  };
+
+  const moistureAt = (x: number, y: number): number =>
+    fbmMoist(x * freqM, y * freqM) * 0.5 + 0.5;
+
+  return { width, height, seaLevel, seed: opts.seed, heightAt, moistureAt };
+}
+
+/* ═══ 2부: 표본 찍기 — 세계의 사각 구역을 셀로 샘플링 ═══ */
+export function sampleTerrain(
+  def: WorldDef,
+  win: WorldWindow,
+  cellCount: number,
+  outW: number,
+  outH: number
+): Terrain {
+  // 표본용 난수는 세계 정의와 분리 (창마다 결정적)
+  const salt = `${def.seed}|s|${Math.round(win.x)},${Math.round(win.y)},${Math.round(win.w)},${Math.round(win.h)}`;
+  const rand = mulberry32(hashSeed(salt));
+
+  /* 창 안(세계 좌표)에 점 뿌리기 + Lloyd 1회 */
   let points: [number, number][] = Array.from({ length: cellCount }, () => [
-    rand() * width,
-    rand() * height
+    win.x + rand() * win.w,
+    win.y + rand() * win.h
   ]);
+  const bounds: [number, number, number, number] = [win.x, win.y, win.x + win.w, win.y + win.h];
   {
-    const v = Delaunay.from(points).voronoi([0, 0, width, height]);
+    const v = Delaunay.from(points).voronoi(bounds);
     points = points.map((p, i) => {
       const poly = v.cellPolygon(i);
       if (!poly) return p;
@@ -158,14 +224,11 @@ export function generateTerrain(opts: TerrainOptions): Terrain {
   }
 
   const delaunay = Delaunay.from(points);
-  const voronoi = delaunay.voronoi([0, 0, width, height]);
+  const voronoi = delaunay.voronoi(bounds);
 
-  /* 높이 = 노이즈 + 대륙 마스크 + 가장자리 마진(잘림 방지) */
-  const freq = (region ? 3.2 : 1.8) / Math.max(width, height); // 낮을수록 덩어리 큼
-  const margin = (region ? 0.035 : 0.07) * Math.min(width, height);
-
-  const fbmMoist = makeFbm(rand); // 습도용 별도 노이즈
-  const freqM = 2.6 / Math.max(width, height);
+  /* 세계 좌표 → 출력 캔버스 좌표 */
+  const tx = (x: number) => ((x - win.x) / win.w) * outW;
+  const ty = (y: number) => ((y - win.y) / win.h) * outH;
 
   const polygons: [number, number][][] = [];
   const centers: [number, number][] = [];
@@ -174,43 +237,46 @@ export function generateTerrain(opts: TerrainOptions): Terrain {
   const moisture: number[] = [];
 
   for (let i = 0; i < points.length; i++) {
-    polygons.push((voronoi.cellPolygon(i) ?? []) as [number, number][]);
-    centers.push(points[i]);
+    const poly = (voronoi.cellPolygon(i) ?? []) as [number, number][];
+    polygons.push(poly.map(([x, y]) => [tx(x), ty(y)] as [number, number]));
+    centers.push([tx(points[i][0]), ty(points[i][1])]);
     neighbors.push([...delaunay.neighbors(i)]);
-
-    const [x, y] = points[i];
-    const n01 = fbm(x * freq, y * freq) * 0.5 + 0.5;
-
-    // 가장 가까운 대륙 중심 기준 마스크 (가우시안)
-    let mask = 0;
-    for (const [cx, cy] of contCenters) {
-      const d = Math.hypot(x - cx, y - cy) / contR;
-      mask = Math.max(mask, Math.exp(-d * d * 1.5));
-    }
-    for (const isl of isles) {
-      const d = Math.hypot(x - isl.x, y - isl.y) / isl.r;
-      mask = Math.max(mask, Math.exp(-d * d * 1.6) * 0.95); // 섬은 대륙보다 낮게
-    }
-
-    // 가장자리 마진: 경계에 가까울수록 0으로 눌러 무조건 바다
-    const edgeD = Math.min(x, y, width - x, height - y) / margin;
-    const e = Math.max(0, Math.min(1, edgeD));
-    const edgeMask = e * e * (3 - 2 * e); // smoothstep
-
-    // 능선 마스크: 가장 가까운 능선 선분까지 거리
-    let ridge = 0;
-    for (const rg of ridges) {
-      for (let sgi = 0; sgi < rg.pts.length - 1; sgi++) {
-        const d = distToSeg(x, y, rg.pts[sgi], rg.pts[sgi + 1]) / rg.w;
-        ridge = Math.max(ridge, Math.exp(-d * d * 2));
-      }
-    }
-
-    // 대륙 마스크 = 육지 여부(저지대), 능선 = 고도. 산은 선을 따라 선다
-    const h = (n01 * 0.5 + mask * 0.52 - 0.13 + ridge * 0.38) * edgeMask;
-    heights.push(Math.max(0, Math.min(1, h)));
-    moisture.push(fbmMoist(x * freqM, y * freqM) * 0.5 + 0.5);
+    heights.push(def.heightAt(points[i][0], points[i][1]));
+    moisture.push(def.moistureAt(points[i][0], points[i][1]));
   }
 
-  return { width, height, polygons, centers, neighbors, heights, moisture, seaLevel, seed: opts.seed };
+  return {
+    width: outW, height: outH,
+    polygons, centers, neighbors, heights, moisture,
+    seaLevel: def.seaLevel, seed: def.seed
+  };
+}
+
+/* ═══ 기존 API 호환 ═══ */
+export function generateTerrain(opts: TerrainOptions): Terrain {
+  const def = buildWorldDef(opts);
+  return sampleTerrain(
+    def,
+    { x: 0, y: 0, w: def.width, h: def.height },
+    opts.cellCount ?? 2500,
+    def.width,
+    def.height
+  );
+}
+
+/** 세계 지도의 사각 구역 → 지역 지도 (지형 정합) */
+export function generateRegion(
+  worldOpts: TerrainOptions,
+  win: WorldWindow,
+  cellCount = 3500,
+  outW = 1600
+): Terrain {
+  const def = buildWorldDef(worldOpts);
+  // 창을 세계 경계 안으로 클램프
+  const x = Math.max(0, Math.min(def.width - 10, win.x));
+  const y = Math.max(0, Math.min(def.height - 10, win.y));
+  const w = Math.max(10, Math.min(def.width - x, win.w));
+  const h = Math.max(10, Math.min(def.height - y, win.h));
+  const outH = Math.round((outW * h) / w);
+  return sampleTerrain(def, { x, y, w, h }, cellCount, outW, outH);
 }

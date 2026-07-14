@@ -154,7 +154,12 @@ function scaleBar(x: number, y: number, mid = 250): string {
   return `<g>${bars}${label(0, x)}${label(mid, x + seg * 2)}${label(mid * 2, x + seg * 4)}</g>`;
 }
 
-export type RenderOptions = { title?: string; scale?: 'world' | 'region' };
+export type RenderOptions = {
+  title?: string;
+  scale?: 'world' | 'region';
+  /** 지정 시 강을 직접 계산하지 않고 이 폴리라인(캔버스 좌표)을 사용 — 세계-지역 정합용 */
+  riversOverride?: [number, number][][];
+};
 
 export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
   const loops = extractCoastLoops(t).map((l) => chaikin(l, 2));
@@ -202,7 +207,8 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
   }
 
   /* 강 */
-  const riverPaths = buildRivers(t, opts.scale === 'region' ? 1.8 : 1)
+  const riverLines = opts.riversOverride ?? buildRivers(t, opts.scale === 'region' ? 1.8 : 1);
+  const riverPaths = riverLines
     .map((r) => {
       const pts = smoothOpen(r, 2);
       // 3구간으로 나눠 굵기 0.9 → 1.6 → 2.4 (수원 가늘게, 하구 굵게)

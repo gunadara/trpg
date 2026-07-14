@@ -14,6 +14,8 @@
   export let image: string;                 // dataURL
   export let pins: MapPin[] = [];
   export let editable = false;              // true면 클릭으로 핀 추가
+  export let selectable = false;            // true면 드래그로 사각 구역 선택 (지역 뽑기)
+  export let onSelectRect: (r: { x: number; y: number; w: number; h: number }) => void = () => {}; // % 좌표
   export let pinStyle: 'default' | 'antique' = 'default'; // antique = 옛 지도풍(점+지명)
   export let onAddPin: (x: number, y: number) => void = () => {};
   export let onPinClick: (pin: MapPin) => void = () => {};
@@ -40,13 +42,49 @@
   }
 
   function handleMapClick(e: MouseEvent) {
-    if (!editable) return;
+    if (!editable || selectable) return;
     const target = e.currentTarget as HTMLElement;
     const rect = target.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     onAddPin(Math.round(x * 10) / 10, Math.round(y * 10) / 10);
   }
+
+  /* ── 구역 드래그 선택 (지역 뽑기) ── */
+  let selStart: { x: number; y: number } | null = null;
+  let selCur: { x: number; y: number } | null = null;
+  let mapEl: HTMLElement | null = null;
+
+  function pctOf(e: PointerEvent): { x: number; y: number } {
+    const rect = (mapEl as HTMLElement).getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)),
+      y: Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100))
+    };
+  }
+  function selDown(e: PointerEvent) {
+    if (!selectable) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    selStart = selCur = pctOf(e);
+  }
+  function selMove(e: PointerEvent) {
+    if (!selectable || !selStart) return;
+    selCur = pctOf(e);
+  }
+  function selUp() {
+    if (!selectable || !selStart || !selCur) { selStart = selCur = null; return; }
+    const r = selRect;
+    selStart = selCur = null;
+    if (r && r.w > 3 && r.h > 3) onSelectRect(r); // 너무 작은 드래그는 무시
+  }
+  $: selRect = selStart && selCur
+    ? {
+        x: Math.min(selStart.x, selCur.x),
+        y: Math.min(selStart.y, selCur.y),
+        w: Math.abs(selCur.x - selStart.x),
+        h: Math.abs(selCur.y - selStart.y)
+      }
+    : null;
 </script>
 
 <div class="relative w-full h-full bg-[#0f172a] rounded-2xl border border-slate-800 overflow-hidden">
@@ -54,13 +92,24 @@
   <div class="w-full h-full overflow-auto flex" bind:clientWidth={cw} bind:clientHeight={ch}>
     <!-- 이미지 + 핀 레이어 (이미지 크기에 맞춰 핀이 따라감) -->
     <div
-      class="relative inline-block m-auto {editable ? 'cursor-crosshair' : ''}"
-      style="width: {zoom}%"
+      class="relative inline-block m-auto {editable && !selectable ? 'cursor-crosshair' : ''} {selectable ? 'cursor-crosshair' : ''}"
+      style="width: {zoom}%; {selectable ? 'touch-action: none;' : ''}"
+      bind:this={mapEl}
       on:click={handleMapClick}
+      on:pointerdown={selDown}
+      on:pointermove={selMove}
+      on:pointerup={selUp}
       role="img"
       aria-label="세계관 지도"
     >
       <img src={image} alt="지도" class="w-full block select-none" draggable="false" on:load={handleImgLoad} />
+
+      {#if selRect}
+        <div
+          class="absolute border-2 border-dashed border-indigo-400 bg-indigo-400/15 pointer-events-none rounded"
+          style="left: {selRect.x}%; top: {selRect.y}%; width: {selRect.w}%; height: {selRect.h}%"
+        ></div>
+      {/if}
 
       {#each pins as pin (pin.id)}
         {#if pinStyle === 'antique'}
@@ -105,6 +154,12 @@
   {#if editable}
     <div class="absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-indigo-600/90 text-white text-[11px] font-bold backdrop-blur pointer-events-none">
       ✏️ 편집 모드 — 지도를 탭하면 핀이 찍혀요
+    </div>
+  {/if}
+
+  {#if selectable}
+    <div class="absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-emerald-600/90 text-white text-[11px] font-bold backdrop-blur pointer-events-none">
+      🔍 드래그해서 지역을 선택하세요
     </div>
   {/if}
 </div>
