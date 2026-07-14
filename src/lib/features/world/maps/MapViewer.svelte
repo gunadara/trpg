@@ -14,13 +14,30 @@
   export let image: string;                 // dataURL
   export let pins: MapPin[] = [];
   export let editable = false;              // true면 클릭으로 핀 추가
+  export let pinStyle: 'default' | 'antique' = 'default'; // antique = 옛 지도풍(점+지명)
   export let onAddPin: (x: number, y: number) => void = () => {};
   export let onPinClick: (pin: MapPin) => void = () => {};
 
-  let zoom = 100; // %
+  let zoom = 100; // % (컨테이너 가로폭 기준)
 
+  // 화면 맞춤: 가로·세로가 모두 들어오는 배율 계산
+  let cw = 0, ch = 0;           // 스크롤 영역 크기
+  let natW = 0, natH = 0;       // 이미지 원본 크기
+  $: fitZoom =
+    cw > 0 && ch > 0 && natW > 0 && natH > 0
+      ? Math.min(100, ((ch * natW) / (natH * cw)) * 100)
+      : 100;
+
+  function fit() { zoom = fitZoom; }
   function zoomIn() { zoom = Math.min(400, zoom + 50); }
-  function zoomOut() { zoom = Math.max(100, zoom - 50); }
+  function zoomOut() { zoom = Math.max(Math.min(fitZoom, 100), zoom - 50); }
+
+  function handleImgLoad(e: Event) {
+    const img = e.currentTarget as HTMLImageElement;
+    natW = img.naturalWidth;
+    natH = img.naturalHeight;
+    fit(); // 지도가 열리면 항상 전체가 보이게
+  }
 
   function handleMapClick(e: MouseEvent) {
     if (!editable) return;
@@ -34,39 +51,55 @@
 
 <div class="relative w-full h-full bg-[#0f172a] rounded-2xl border border-slate-800 overflow-hidden">
   <!-- 스크롤 영역 -->
-  <div class="w-full h-full overflow-auto">
+  <div class="w-full h-full overflow-auto flex" bind:clientWidth={cw} bind:clientHeight={ch}>
     <!-- 이미지 + 핀 레이어 (이미지 크기에 맞춰 핀이 따라감) -->
     <div
-      class="relative inline-block {editable ? 'cursor-crosshair' : ''}"
+      class="relative inline-block m-auto {editable ? 'cursor-crosshair' : ''}"
       style="width: {zoom}%"
       on:click={handleMapClick}
       role="img"
       aria-label="세계관 지도"
     >
-      <img src={image} alt="지도" class="w-full block select-none" draggable="false" />
+      <img src={image} alt="지도" class="w-full block select-none" draggable="false" on:load={handleImgLoad} />
 
       {#each pins as pin (pin.id)}
-        <button
-          class="absolute -translate-x-1/2 -translate-y-full group"
-          style="left: {pin.x}%; top: {pin.y}%"
-          on:click|stopPropagation={() => onPinClick(pin)}
-          title={pin.label}
-        >
-          <span class="block text-xl drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] group-hover:scale-125 transition-transform">📍</span>
-          <span class="absolute left-1/2 -translate-x-1/2 top-full mt-0.5 px-1.5 py-0.5 rounded
-                       bg-black/70 text-[10px] text-slate-100 whitespace-nowrap
-                       opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-            {pin.label}
-          </span>
-        </button>
+        {#if pinStyle === 'antique'}
+          <button
+            class="absolute -translate-x-1/2 -translate-y-1/2 group flex flex-col items-center"
+            style="left: {pin.x}%; top: {pin.y}%"
+            on:click|stopPropagation={() => onPinClick(pin)}
+            title={pin.label}
+          >
+            <span class="block w-2 h-2 rounded-full bg-[#4a4030] ring-2 ring-[#dcd4ae] group-hover:scale-150 transition-transform"></span>
+            <span class="mt-0.5 px-1 text-[11px] font-serif font-semibold text-[#4a4030] whitespace-nowrap
+                         [text-shadow:0_0_3px_#dcd4ae,0_0_3px_#dcd4ae,0_0_3px_#dcd4ae]">
+              {pin.label}
+            </span>
+          </button>
+        {:else}
+          <button
+            class="absolute -translate-x-1/2 -translate-y-full group"
+            style="left: {pin.x}%; top: {pin.y}%"
+            on:click|stopPropagation={() => onPinClick(pin)}
+            title={pin.label}
+          >
+            <span class="block text-xl drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] group-hover:scale-125 transition-transform">📍</span>
+            <span class="absolute left-1/2 -translate-x-1/2 top-full mt-0.5 px-1.5 py-0.5 rounded
+                         bg-black/70 text-[10px] text-slate-100 whitespace-nowrap
+                         opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              {pin.label}
+            </span>
+          </button>
+        {/if}
       {/each}
     </div>
   </div>
 
   <!-- 줌 컨트롤 -->
-  <div class="absolute bottom-4 right-4 flex flex-col gap-1.5">
+  <div class="absolute top-4 right-4 flex flex-col gap-1.5">
     <button on:click={zoomIn} class="w-9 h-9 rounded-lg bg-black/60 border border-white/10 text-slate-200 text-lg hover:border-indigo-500 transition backdrop-blur">+</button>
     <button on:click={zoomOut} class="w-9 h-9 rounded-lg bg-black/60 border border-white/10 text-slate-200 text-lg hover:border-indigo-500 transition backdrop-blur">−</button>
+    <button on:click={fit} title="화면 맞춤" class="w-9 h-9 rounded-lg bg-black/60 border border-white/10 text-slate-200 text-sm hover:border-indigo-500 transition backdrop-blur">⛶</button>
   </div>
 
   {#if editable}

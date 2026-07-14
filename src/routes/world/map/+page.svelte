@@ -3,9 +3,17 @@
   import { listDocs, patchDoc, searchDocsByTitle, getDocById } from '$lib/stores/docStore';
   import { gotoDoc } from '$lib/services/worldNav';
   import MapViewer, { type MapPin } from '$lib/features/world/maps/MapViewer.svelte';
+  import MapGenerator from '$lib/features/world/maps/generator/MapGenerator.svelte';
   import type { WorldDoc } from '$lib/domain/docs';
 
   let refresh = 0; // patch 후 목록 갱신용
+  let showGenerator = false;
+
+  function handleGeneratedSaved(docId: string) {
+    showGenerator = false;
+    refresh++;
+    selectedId = docId; // 방금 생성한 지도 바로 열기
+  }
 
   // 지도 이미지를 가진 장소 문서들
   $: mapDocs = browser && refresh >= 0
@@ -94,6 +102,13 @@
       {/if}
     </div>
 
+    <button
+      on:click={() => (showGenerator = true)}
+      class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border border-line text-muted hover:border-primary hover:text-primary transition"
+    >
+      🌍 생성
+    </button>
+
     {#if selected}
       <button
         on:click={() => (editMode = !editMode)}
@@ -114,6 +129,7 @@
         image={(selected.attributes as any).mapImage}
         {pins}
         editable={editMode}
+        pinStyle={(selected.attributes as any).mapGen ? 'antique' : 'default'}
         onAddPin={handleAddPin}
         onPinClick={handlePinClick}
       />
@@ -121,6 +137,18 @@
       <div class="h-full flex flex-col items-center justify-center gap-2 text-muted border-2 border-dashed border-line rounded-3xl text-sm text-center px-6">
         <p>등록된 지도가 없어요.</p>
         <p class="text-xs">장소 문서를 열고 「🗺️ 지역 상세 정보」에서 지도 이미지를 올리면 여기에 나타나요.</p>
+      </div>
+    {/if}
+
+    <!-- 지도 생성기 -->
+    {#if showGenerator}
+      <div class="absolute inset-0 bg-black/50 flex items-end md:items-center justify-center p-4 z-20 overflow-y-auto"
+           on:click={() => (showGenerator = false)}
+           on:keydown={(e) => e.key === 'Escape' && (showGenerator = false)}
+           role="button" tabindex="-1">
+        <div on:click|stopPropagation role="dialog" class="w-full flex justify-center">
+          <MapGenerator onSaved={handleGeneratedSaved} onClose={() => (showGenerator = false)} />
+        </div>
       </div>
     {/if}
 
