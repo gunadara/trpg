@@ -408,21 +408,16 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${t.width} ${t.height}">` +
     `<defs>` +
     `<clipPath id="land"><path d="${coastPath}" fill-rule="evenodd"/></clipPath>` +
-    `<filter id="soften" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="6"/></filter>` +
-    `<filter id="paper" x="0" y="0" width="100%" height="100%">` +
-    `<feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="1" seed="7" stitchTiles="stitch"/>` +
-    `<feColorMatrix type="matrix" values="0 0 0 0 0.42 0 0 0 0 0.37 0 0 0 0 0.26 0 0 0 0.07 0"/>` +
-    `</filter>` +
     `<radialGradient id="vig" cx="50%" cy="50%" r="72%">` +
     `<stop offset="70%" stop-color="${INK}" stop-opacity="0"/>` +
     `<stop offset="100%" stop-color="${INK}" stop-opacity="0.16"/>` +
     `</radialGradient>` +
     `</defs>` +
     `<rect width="${t.width}" height="${t.height}" fill="${OCEAN}"/>` +
-    `<g filter="url(#soften)">${deepPaths.join('')}</g>` +
+    `<g opacity="0.55">${deepPaths.join('')}</g>` +
     rings +
     `<path d="${coastPath}" fill="${LAND_BASE}" fill-rule="evenodd"/>` +
-    `<g clip-path="url(#land)" filter="url(#soften)">${bandPaths.join('')}</g>` +
+    `<g clip-path="url(#land)" opacity="0.65">${bandPaths.join('')}</g>` +
     `<g clip-path="url(#land)">${riverPaths}</g>` +
     `<g clip-path="url(#land)">${trees}</g>` +
     `<g clip-path="url(#land)">${desertDots}</g>` +
@@ -436,7 +431,6 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     compassRose(bestCorner[0], bestCorner[1], 34) +
     scaleBar(42, t.height - 40, opts.scale === 'region' ? 50 : 250) +
     `<rect width="${t.width}" height="${t.height}" fill="url(#vig)" pointer-events="none"/>` +
-    `<rect width="${t.width}" height="${t.height}" filter="url(#paper)" pointer-events="none"/>` +
     `</svg>`
   );
 }
