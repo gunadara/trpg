@@ -3,7 +3,7 @@
   import { listDocs, patchDoc, searchDocsByTitle, getDocById, createBlankDoc } from '$lib/stores/docStore';
   import { generateTerrain, generateRegion, type Terrain } from '$lib/features/world/maps/generator/terrain';
   import { buildRivers, clipRiversToWindow } from '$lib/features/world/maps/generator/rivers';
-  import { renderTerrainSvg, svgToDataUrl } from '$lib/features/world/maps/generator/renderSvg';
+  import { renderTerrainSvg, svgToDataUrl, svgDataUrlToPng } from '$lib/features/world/maps/generator/renderSvg';
   import { gotoDoc } from '$lib/services/worldNav';
   import MapViewer, { type MapPin } from '$lib/features/world/maps/MapViewer.svelte';
   import MapGenerator from '$lib/features/world/maps/generator/MapGenerator.svelte';
@@ -58,32 +58,36 @@
 
     selectRegionMode = false;
     regionBusy = true;
-    setTimeout(() => {
+    setTimeout(async () => {
       try {
         // 강 2패스: 세계 해상도 강을 지역에 얹는다 (정합)
         const worldT = generateTerrain(worldOpts);
         const worldRivers = buildRivers(worldT);
         const terrain = generateRegion(worldOpts, win, 3500);
         const rivers = clipRiversToWindow(worldRivers, win, terrain.width, terrain.height);
-        const svg = renderTerrainSvg(terrain, { scale: 'region', riversOverride: rivers });
+        const svgUrl = svgToDataUrl(renderTerrainSvg(terrain, { scale: 'region', riversOverride: rivers }));
+        let url = svgUrl;
+        try { url = await svgDataUrlToPng(svgUrl, 1.5); } catch { /* SVG 폴백 */ }
         regionName = '';
-        regionPreview = { url: svgToDataUrl(svg), win, terrain, rivers, worldOpts };
+        regionPreview = { url, win, terrain, rivers, worldOpts };
       } finally {
         regionBusy = false;
       }
     }, 30);
   }
 
-  function saveRegion() {
+  async function saveRegion() {
     if (!regionPreview || !selected) return;
     const { terrain, rivers, win, worldOpts } = regionPreview;
     const name = regionName.trim();
-    const svg = renderTerrainSvg(terrain, { scale: 'region', riversOverride: rivers, title: name });
+    const svgUrl = svgToDataUrl(renderTerrainSvg(terrain, { scale: 'region', riversOverride: rivers, title: name }));
+    let mapImage = svgUrl;
+    try { mapImage = await svgDataUrlToPng(svgUrl, 1.5); } catch { /* 변환 실패 시 SVG 폴백 */ }
     const doc = createBlankDoc('locations');
     patchDoc(doc.id, {
       title: name || `지역 지도 (${(selected as any).title || '세계'})`,
       attributes: {
-        mapImage: svgToDataUrl(svg),
+        mapImage,
         pins: [],
         mapGen: { ...worldOpts, type: 'region', window: win, parentId: selected.id, stage: 9 }
       }

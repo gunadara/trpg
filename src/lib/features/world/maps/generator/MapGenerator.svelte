@@ -16,12 +16,14 @@
   let islandLevel = 0.3; // 섬 밀도 0~1
   let wide = false; // 넓은 세계 (1600×1120)
 
-  let previewUrl = '';
+  let previewUrl = '';   // 항상 PNG (웹뷰 SVG 렌더 크래시 방지)
   let lastSeed = '';
   let saving = false;
   let exporting = false;
+  let rendering = false;
+  let genToken = 0; // 연타 시 마지막 요청만 반영
 
-  function generate() {
+  async function generate() {
     const size = wide
       ? { width: 1600, height: 1120, cellCount: Math.max(cellCount, 4000) }
       : { width: 1000, height: 700, cellCount };
@@ -34,7 +36,19 @@
       ...size
     });
     // (지방 지도는 대륙 1개 고정)
-    previewUrl = svgToDataUrl(renderTerrainSvg(t, { title: worldName, scale: mapType }));
+    const token = ++genToken;
+    rendering = true;
+    const svgUrl = svgToDataUrl(renderTerrainSvg(t, { title: worldName, scale: mapType }));
+    try {
+      const png = await svgDataUrlToPng(svgUrl, 1.5); // 한 번만 래스터화
+      if (token !== genToken) return; // 더 새 요청이 있으면 버림
+      previewUrl = png;
+    } catch {
+      if (token !== genToken) return;
+      previewUrl = svgUrl; // 변환 실패 시 폴백
+    } finally {
+      if (token === genToken) rendering = false;
+    }
     lastSeed = t.seed;
   }
 
@@ -121,7 +135,7 @@
         on:keydown={(e) => e.key === 'Enter' && generate()}
       />
       <button on:click={generate} class="px-3 py-2 rounded-lg border border-line text-xs font-bold text-muted hover:border-primary hover:text-primary transition shrink-0">이 시드로</button>
-      <button on:click={reroll} class="px-3 py-2 rounded-lg bg-primary text-white text-xs font-bold hover:opacity-90 transition shrink-0">🎲 새로</button>
+      <button on:click={reroll} class="px-3 py-2 rounded-lg bg-primary text-white text-xs font-bold hover:opacity-90 transition shrink-0">{rendering ? "…" : "🎲 새로"}</button>
     </div>
 
     <div class="flex items-center gap-3">

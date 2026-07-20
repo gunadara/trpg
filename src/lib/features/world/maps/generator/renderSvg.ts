@@ -408,9 +408,9 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${t.width} ${t.height}">` +
     `<defs>` +
     `<clipPath id="land"><path d="${coastPath}" fill-rule="evenodd"/></clipPath>` +
-    `<filter id="soften" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="8"/></filter>` +
+    `<filter id="soften" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="6"/></filter>` +
     `<filter id="paper" x="0" y="0" width="100%" height="100%">` +
-    `<feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="2" seed="7" stitchTiles="stitch"/>` +
+    `<feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="1" seed="7" stitchTiles="stitch"/>` +
     `<feColorMatrix type="matrix" values="0 0 0 0 0.42 0 0 0 0 0.37 0 0 0 0 0.26 0 0 0 0.07 0"/>` +
     `</filter>` +
     `<radialGradient id="vig" cx="50%" cy="50%" r="72%">` +

@@ -1,8 +1,28 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { tagStore, type Group, type Sub } from '$lib/stores/tagStore';
+  import SlotMachine from '$lib/features/draw/SlotMachine.svelte';
+  import RouletteWheel from '$lib/features/draw/RouletteWheel.svelte';
 
-  onMount(() => tagStore.load());
+  onMount(() => {
+    tagStore.load();
+    const s = localStorage.getItem('drawStyle');
+    if (s === 'slot' || s === 'roulette') drawStyle = s;
+  });
+
+  // 뽑기 연출 방식
+  type DrawStyle = 'instant' | 'slot' | 'roulette';
+  let drawStyle: DrawStyle = 'instant';
+  const STYLES: { v: DrawStyle; label: string }[] = [
+    { v: 'instant', label: '⚡ 바로' },
+    { v: 'slot', label: '🎰 슬롯' },
+    { v: 'roulette', label: '🎡 룰렛' }
+  ];
+  function setStyle(v: DrawStyle) {
+    drawStyle = v;
+    try { localStorage.setItem('drawStyle', v); } catch {}
+    slotReels = []; roulettePool = []; spinning = false;
+  }
 
   $: data = $tagStore;
   $: groups = data?.groups ?? [];
@@ -38,30 +58,41 @@
   let pickCount = 3;
   let pickMode: 'each' | 'n' = 'each'; // 방식 선택: 카테고리별 1개씩 / 모아서 N개
 
+  // 슬롯 연출 상태
+  let slotReels: { pool: string[]; final: string }[] = [];
+  let slotKey = 0;
+  let spinning = false;
+
+  // 룰렛 연출 상태
+  const ROULETTE_MAX = 18;
+  let roulettePool: { tag: string; source: string | null }[] = [];
+  let rouletteKey = 0;
+
   // 선택된 방식으로 실행 (큰 뽑기 버튼)
   function rollGroup() {
-    if (pickMode === 'each') pickFromGroup();
-    else pickNFromGroup();
-  }
-
-  function pickFromGroup() {
     if (!group) return;
-    // 왼쪽 칸: 체크된 항목마다 각각 1개씩 (캐릭터 완성용)
-    results = group.subs
-      .filter((s) => s.enabled !== false && s.tags.length > 0)
-      .map((s) => ({ tag: s.tags[Math.floor(Math.random() * s.tags.length)], source: null }));
-    rolled = true;
-  }
-
-  function pickNFromGroup() {
-    if (!group) return;
-    // 오른쪽 칸: 체크된 항목 태그를 다 합쳐서 무작위 N개 (항목 구분 없이)
-    const pool = group.subs
-      .filter((s) => s.enabled !== false)
-      .flatMap((s) => s.tags);
-    const shuffled = [...pool].sort(() => Math.random() - 0.5);
-    results = shuffled.slice(0, Math.min(pickCount, shuffled.length)).map((t) => ({ tag: t, source: null }));
-    rolled = true;
+    if (drawStyle === 'roulette') {
+      const pool = group.subs
+        .filter((s) => s.enabled !== false)
+        .flatMap((s) => s.tags.map((t) => ({ tag: t, source: null as string | null })));
+      startRoulette(pool);
+      return;
+    }
+    if (pickMode === 'each') {
+      // 체크된 항목마다 각각 1개씩 (캐릭터 완성용)
+      const picked = group.subs
+        .filter((s) => s.enabled !== false && s.tags.length > 0)
+        .map((s) => ({ tag: s.tags[Math.floor(Math.random() * s.tags.length)], source: null as string | null, pool: s.tags }));
+      applyResults(picked);
+    } else {
+      // 체크된 항목 태그를 다 합쳐서 무작위 N개 (항목 구분 없이)
+      const pool = group.subs.filter((s) => s.enabled !== false).flatMap((s) => s.tags);
+      const shuffled = [...pool].sort(() => Math.random() - 0.5);
+      const picked = shuffled
+        .slice(0, Math.min(pickCount, shuffled.length))
+        .map((t) => ({ tag: t, source: null as string | null, pool }));
+      applyResults(picked);
+    }
   }
 
   // 전체 랜덤 — 모든 분야 통틀어 N개, 출처는 아래에 표기
@@ -69,8 +100,47 @@
     const pool = groups.flatMap((g) =>
       g.subs.flatMap((s) => s.tags.map((t) => ({ tag: t, source: `${g.name}·${s.name}` })))
     );
+    if (drawStyle === 'roulette') {
+      startRoulette(pool);
+      return;
+    }
+    const tagPool = pool.map((p) => p.tag);
     const shuffled = [...pool].sort(() => Math.random() - 0.5);
-    results = shuffled.slice(0, Math.min(pickCount, shuffled.length));
+    const picked = shuffled
+      .slice(0, Math.min(pickCount, shuffled.length))
+      .map((p) => ({ ...p, pool: tagPool }));
+    applyResults(picked);
+  }
+
+  // 결과 반영 + 슬롯 연출이면 릴 세팅
+  function applyResults(picked: { tag: string; source: string | null; pool: string[] }[]) {
+    results = picked.map((p) => ({ tag: p.tag, source: p.source }));
+    rolled = true;
+    roulettePool = [];
+    if (drawStyle === 'slot' && picked.length > 0) {
+      slotReels = picked.map((p) => ({ pool: p.pool.length > 1 ? p.pool : [p.tag], final: p.tag }));
+      spinning = true;
+      slotKey += 1;
+    } else {
+      slotReels = [];
+      spinning = false;
+    }
+  }
+
+  // 룰렛 판 세팅 (풀에서 최대 18개만 무작위로 올림)
+  function startRoulette(pool: { tag: string; source: string | null }[]) {
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    roulettePool = shuffled.slice(0, Math.min(ROULETTE_MAX, shuffled.length));
+    rouletteKey += 1;
+    results = [];
+    rolled = false;
+    slotReels = [];
+    spinning = false;
+  }
+
+  function onRouletteResult(e: CustomEvent<{ tag: string }>) {
+    const hit = roulettePool.find((p) => p.tag === e.detail.tag);
+    results = [{ tag: e.detail.tag, source: hit?.source ?? null }];
     rolled = true;
   }
   async function copyResult() {
@@ -141,19 +211,58 @@
           <h2 class="text-sm font-bold text-amber-300 mb-1">🎲 전체 랜덤</h2>
           <p class="text-[11px] text-muted mb-4">분야·항목 상관없이 모든 태그에서 무작위로 뽑아요.</p>
 
+          <!-- 연출 방식 -->
+          <div class="flex gap-1.5 mb-3">
+            {#each STYLES as st (st.v)}
+              <button on:click={() => setStyle(st.v)}
+                class="px-3 py-1.5 rounded-lg border text-xs font-bold transition
+                       {drawStyle === st.v ? 'border-amber-500 bg-amber-600/20 text-amber-200' : 'border-line bg-surface/40 text-muted hover:border-amber-500/40'}">
+                {st.label}
+              </button>
+            {/each}
+          </div>
+
           <div class="flex items-center gap-2 mb-4">
             <button on:click={randomAll}
-              class="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-bold transition">🎲 뽑기</button>
-            <span class="flex items-center gap-1 ms-1">
-              <button on:click={() => (pickCount = Math.max(1, pickCount - 1))} class="w-7 h-7 rounded border border-line text-muted hover:border-primary/40">−</button>
-              <span class="text-sm text-muted w-6 text-center">{pickCount}</span>
-              <button on:click={() => (pickCount = Math.min(8, pickCount + 1))} class="w-7 h-7 rounded border border-line text-muted hover:border-primary/40">＋</button>
-              <span class="text-[11px] text-muted">개</span>
-            </span>
+              class="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-bold transition">
+              {drawStyle === 'roulette' ? '🎡 룰렛 만들기' : '🎲 뽑기'}
+            </button>
+            {#if drawStyle !== 'roulette'}
+              <span class="flex items-center gap-1 ms-1">
+                <button on:click={() => (pickCount = Math.max(1, pickCount - 1))} class="w-7 h-7 rounded border border-line text-muted hover:border-primary/40">−</button>
+                <span class="text-sm text-muted w-6 text-center">{pickCount}</span>
+                <button on:click={() => (pickCount = Math.min(8, pickCount + 1))} class="w-7 h-7 rounded border border-line text-muted hover:border-primary/40">＋</button>
+                <span class="text-[11px] text-muted">개</span>
+              </span>
+            {:else}
+              <span class="text-[11px] text-muted">한 번에 1개 · 판에는 최대 {ROULETTE_MAX}개</span>
+            {/if}
           </div>
 
           <div class="rounded-xl border border-line bg-canvas/60 min-h-[80px] p-4">
-            {#if !rolled}
+            {#if drawStyle === 'roulette' && roulettePool.length > 0}
+              {#key rouletteKey}
+                <RouletteWheel items={roulettePool.map((p) => p.tag)} autoSpin on:result={onRouletteResult} />
+              {/key}
+              {#if rolled && results.length > 0 && !spinning}
+                <p class="text-lg font-bold text-amber-300 text-center mt-3">{results[0].tag}</p>
+                {#if results[0].source}
+                  <p class="text-[11px] text-muted text-center mt-1">{results[0].source}</p>
+                {/if}
+              {/if}
+            {:else if drawStyle === 'slot' && slotReels.length > 0}
+              {#key slotKey}
+                <SlotMachine reels={slotReels} on:done={() => (spinning = false)} />
+              {/key}
+              {#if !spinning && results.some((r) => r.source)}
+                <div class="mt-4 pt-3 border-t border-line">
+                  <p class="text-[10px] text-subtle mb-1">출처</p>
+                  <p class="text-[11px] text-muted leading-relaxed">
+                    {results.map((r) => `${r.tag} (${r.source})`).join(' · ')}
+                  </p>
+                </div>
+              {/if}
+            {:else if !rolled}
               <p class="text-sm text-subtle text-center">아직 뽑지 않았어요</p>
             {:else if results.length === 0}
               <p class="text-sm text-subtle text-center">뽑을 태그가 없어요</p>
@@ -173,7 +282,7 @@
               {/if}
             {/if}
           </div>
-          {#if rolled && results.length > 0}
+          {#if rolled && results.length > 0 && !spinning}
             <button on:click={copyResult} class="mt-2 text-xs text-emerald-400 hover:underline">{copied ? '✓ 복사됨' : '📋 결과 복사'}</button>
           {/if}
         </section>
@@ -186,6 +295,20 @@
         <section class="rounded-2xl border border-line bg-surface/60 p-5">
           <h2 class="text-sm font-bold text-primary mb-3">✨ 뽑기 결과</h2>
 
+          <!-- 연출 방식 -->
+          <div class="flex gap-1.5 mb-3">
+            {#each STYLES as st (st.v)}
+              <button on:click={() => setStyle(st.v)}
+                class="px-3 py-1.5 rounded-lg border text-xs font-bold transition
+                       {drawStyle === st.v ? 'border-primary bg-primary/20 text-primary' : 'border-line bg-surface/40 text-muted hover:border-primary/40'}">
+                {st.label}
+              </button>
+            {/each}
+          </div>
+
+          {#if drawStyle === 'roulette'}
+            <p class="text-[11px] text-muted mb-3">한 번에 1개 뽑아요 · 판에는 최대 {ROULETTE_MAX}개가 무작위로 올라가요</p>
+          {:else}
           <!-- 방식 선택 (라디오처럼 하이라이트) → 폰 세로 스택 -->
           <p class="text-[11px] text-muted mb-2">방식 선택</p>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
@@ -210,15 +333,27 @@
               <button on:click={() => (pickCount = Math.min(8, pickCount + 1))} class="w-7 h-7 rounded border border-line text-muted hover:border-primary/40">＋</button>
             </div>
           {/if}
+          {/if}
 
           <!-- 큰 뽑기 버튼 (선택된 방식으로 실행) -->
           <button on:click={rollGroup} disabled={!group.subs.some((s) => s.enabled !== false && s.tags.length > 0)}
             class="w-full py-3 rounded-xl bg-primary hover:opacity-90 disabled:opacity-30  text-ink text-sm font-bold transition mb-3">
-            🎲 뽑기
+            {drawStyle === 'roulette' ? '🎡 룰렛 만들기' : '🎲 뽑기'}
           </button>
 
-          <div class="rounded-xl border border-line bg-canvas/60 min-h-[72px] p-4 flex items-center justify-center">
-            {#if !rolled}
+          <div class="rounded-xl border border-line bg-canvas/60 min-h-[72px] p-4 flex flex-col items-center justify-center">
+            {#if drawStyle === 'roulette' && roulettePool.length > 0}
+              {#key rouletteKey}
+                <RouletteWheel items={roulettePool.map((p) => p.tag)} autoSpin on:result={onRouletteResult} />
+              {/key}
+              {#if rolled && results.length > 0 && !spinning}
+                <p class="text-lg font-bold text-amber-300 text-center mt-3">{results[0].tag}</p>
+              {/if}
+            {:else if drawStyle === 'slot' && slotReels.length > 0}
+              {#key slotKey}
+                <SlotMachine reels={slotReels} on:done={() => (spinning = false)} />
+              {/key}
+            {:else if !rolled}
               <span class="text-sm text-subtle">아직 뽑지 않았어요</span>
             {:else if results.length === 0}
               <span class="text-sm text-subtle">뽑을 태그가 없어요</span>
@@ -230,7 +365,7 @@
               </div>
             {/if}
           </div>
-          {#if rolled && results.length > 0}
+          {#if rolled && results.length > 0 && !spinning}
             <button on:click={copyResult} class="mt-2 text-xs text-emerald-400 hover:underline">{copied ? '✓ 복사됨' : '📋 결과 복사'}</button>
           {/if}
         </section>
