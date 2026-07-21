@@ -64,7 +64,7 @@
   let spinning = false;
 
   // 룰렛 연출 상태
-  const ROULETTE_MAX = 18;
+  const ROULETTE_MAX = 24;
   let roulettePool: { tag: string; source: string | null }[] = [];
   let rouletteKey = 0;
 
@@ -127,7 +127,7 @@
     }
   }
 
-  // 룰렛 판 세팅 (풀에서 최대 18개만 무작위로 올림)
+  // 룰렛 판 세팅 (풀에서 최대 ROULETTE_MAX개만 무작위로 올림)
   function startRoulette(pool: { tag: string; source: string | null }[]) {
     const shuffled = [...pool].sort(() => Math.random() - 0.5);
     roulettePool = shuffled.slice(0, Math.min(ROULETTE_MAX, shuffled.length));

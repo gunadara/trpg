@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
 
-  // items: 원판에 올라갈 항목 (부모가 18개 이하로 잘라서 넘김)
+  // items: 원판에 올라갈 항목 (부모가 ROULETTE_MAX개 이하로 잘라서 넘김)
   export let items: string[] = [];
   export let autoSpin = false;
 
@@ -11,8 +11,14 @@
 
   const dispatch = createEventDispatcher<{ result: { tag: string } }>();
 
-  // 다크 배경에서 균일한 밝기로 어울리는 뮤트 보석톤 (18개여도 인접 중복 없음)
-  const COLORS = ['#C08552', '#7D5BA6', '#4E8D7C', '#C25B6A', '#5B7DB1', '#8A9A5B'];
+  // 항목 수에 맞춰 색상환을 균등 분할 → 서로 다른 조각은 항상 다른 색(겹침 없음).
+  // 다크 배경에 어울리도록 채도·명도는 고정한 뮤트 보석톤.
+  function segColor(i: number, total: number): string {
+    if (total <= 1) return 'hsl(30 45% 52%)';
+    // 황금각으로 흩되 인덱스 순이라 인접도 확실히 구분되게 살짝 오프셋
+    const hue = Math.round((i * (360 / total) + i * 7) % 360);
+    return `hsl(${hue} 42% 52%)`;
+  }
 
   let rotation = 0;
   let spinning = false;
@@ -41,11 +47,12 @@
     return { ...p, angle: mid };
   }
 
-  // 원판 그대로 두고 라벨만 잘라 표시
+  // 원판 그대로 두고 라벨만 잘라 표시 (조각이 얇을수록 짧게)
   function trim(s: string) {
-    const max = n > 12 ? 5 : n > 8 ? 7 : 9;
+    const max = n > 18 ? 4 : n > 12 ? 5 : n > 8 ? 7 : 9;
     return s.length > max ? s.slice(0, max) + '…' : s;
   }
+  $: labelFont = n > 18 ? 7.5 : n > 12 ? 9 : n > 8 ? 10.5 : 12;
 
   export function spin() {
     if (spinning || n === 0) return;
@@ -79,11 +86,11 @@
                transition: {spinning ? 'transform 3.5s cubic-bezier(0.12, 0.65, 0.18, 1)' : 'none'};"
       >
         {#each items as item, i}
-          <path d={segPath(i)} fill={COLORS[i % COLORS.length]} fill-opacity={i % 2 === 0 ? 0.92 : 0.78} stroke="#2a2521" stroke-width="1.5" />
+          <path d={segPath(i)} fill={segColor(i, n)} fill-opacity={i % 2 === 0 ? 0.95 : 0.82} stroke="#2a2521" stroke-width="1.5" />
           {@const lp = labelPos(i)}
           <text
             x={lp.x} y={lp.y}
-            fill="#f5ecd7" font-size={n > 12 ? 9 : n > 8 ? 10.5 : 12} font-weight="bold"
+            fill="#f5ecd7" font-size={labelFont} font-weight="bold"
             text-anchor="middle" dominant-baseline="middle"
             transform="rotate({lp.angle + 90}, {lp.x}, {lp.y})"
           >{trim(item)}</text>
