@@ -353,6 +353,7 @@
       <MapViewer
         image={(selected.attributes as any).mapImage}
         {pins}
+        fullscreenMode={true}
         pinStyle={(selected.attributes as any).mapGen ? 'antique' : 'default'}
         onPinClick={handlePinClick}
       />

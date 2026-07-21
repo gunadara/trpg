@@ -17,6 +17,7 @@
   export let selectable = false;            // true면 드래그로 사각 구역 선택 (지역 뽑기)
   export let onSelectRect: (r: { x: number; y: number; w: number; h: number }) => void = () => {}; // % 좌표
   export let pinStyle: 'default' | 'antique' = 'default'; // antique = 옛 지도풍(점+지명)
+  export let fullscreenMode = false; // 전체화면일 때: 열자마자 화면맞춤, 휠 줌 활성
   export let onAddPin: (x: number, y: number) => void = () => {};
   export let onPinClick: (pin: MapPin) => void = () => {};
 
@@ -34,14 +35,13 @@
   function zoomIn() { zoom = Math.min(400, zoom + 50); }
   function zoomOut() { zoom = Math.max(Math.min(fitZoom, 100), zoom - 50); }
 
-  // PC 마우스 휠 줌 (Ctrl 없이도 휠로 확대/축소)
+  // 휠 줌: 전체화면에서만 지도 확대/축소. 일반 뷰에선 페이지 스크롤을 막지 않음.
   function onWheelZoom(e: WheelEvent) {
-    if (selectable) return; // 지역 선택 중엔 스크롤 유지
+    if (!fullscreenMode || selectable) return; // 전체화면 아니면 페이지 스크롤 그대로
     e.preventDefault();
     const step = e.deltaY < 0 ? 15 : -15;
     const floor = Math.min(fitZoom, 100);
-    const next = zoom + step;
-    zoom = Math.max(floor, Math.min(500, next));
+    zoom = Math.max(floor, Math.min(500, zoom + step));
   }
 
   /* ── 핀치 줌 (모바일 두 손가락) ── */
@@ -80,10 +80,13 @@
     const img = e.currentTarget as HTMLImageElement;
     natW = img.naturalWidth;
     natH = img.naturalHeight;
-    // 세로로 긴 화면(폰)에서 가로 지도를 fit하면 얇은 띠가 되므로,
-    // 그런 경우엔 가로 100%로 채우고 세로 스크롤이 되게 한다.
-    const portrait = ch > cw;
-    zoom = portrait ? 100 : fitZoom;
+    // 전체화면: 항상 화면맞춤 (지도 전체가 한눈에). 아니면 세로화면은 가로채움.
+    if (fullscreenMode) {
+      zoom = fitZoom;
+    } else {
+      const portrait = ch > cw;
+      zoom = portrait ? 100 : fitZoom;
+    }
   }
 
   function handleMapClick(e: MouseEvent) {

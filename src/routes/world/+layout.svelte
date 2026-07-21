@@ -16,6 +16,16 @@
   import DrawHelper from '$lib/features/draw/DrawHelper.svelte';
   import ThemeToggle from '$lib/components/layout/ThemeToggle.svelte';
 
+  // 사이드바 접기/펴기
+  let sidebarCollapsed = false;
+  onMount(() => {
+    sidebarCollapsed = localStorage.getItem('worldSidebarCollapsed') === '1';
+  });
+  function toggleSidebar() {
+    sidebarCollapsed = !sidebarCollapsed;
+    try { localStorage.setItem('worldSidebarCollapsed', sidebarCollapsed ? '1' : '0'); } catch {}
+  }
+
     // /world 영역 진입 시 한 번, SQLite → 메모리/로컬스토리지 하이드레이트
   onMount(() => {
     hydrateCurrentWorldFromSQLite().catch((err) => {
@@ -115,8 +125,20 @@
 
   <!-- 본문: 좌측 사이드바 + 우측 콘텐츠 -->
   <div class="flex-1 flex overflow-hidden min-h-0">
+    <!-- 접혔을 때 펼치기 버튼 (사이드바 자리) -->
+    {#if sidebarCollapsed}
+      <button
+        on:click={toggleSidebar}
+        class="hidden md:flex shrink-0 w-9 self-stretch items-start justify-center pt-3
+               border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950
+               text-slate-400 hover:text-indigo-500 transition"
+        title="문서 목록 펼치기"
+      >
+        ▶
+      </button>
+    {/if}
     <!-- 🔹 데스크탑 / 태블릿용 고정 사이드바 -->
-<aside class="hidden md:flex md:flex-col md:w-60 lg:w-64
+<aside class="{sidebarCollapsed ? 'hidden' : 'hidden md:flex'} md:flex-col md:w-60 lg:w-64
              self-stretch
              border-r border-slate-200 dark:border-slate-800
              bg-white dark:bg-slate-950
@@ -132,6 +154,7 @@
       <div class="flex items-center gap-1">
         <a href="/play/oracle" class="text-[11px] text-indigo-400 hover:underline">🔮 오라클</a>
         <ThemeToggle compact />
+        <button on:click={toggleSidebar} class="text-slate-400 hover:text-indigo-500 transition px-1" title="문서 목록 접기">◀</button>
       </div>
     </div>
     <h1 class="text-xs font-semibold mb-0.5 tracking-tight">
