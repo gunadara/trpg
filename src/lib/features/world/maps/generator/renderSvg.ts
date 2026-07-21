@@ -5,13 +5,15 @@ import { extractCoastLoops, chaikin, loopsToPath } from './coast';
 import { buildRivers, smoothOpen } from './rivers';
 
 /* ── 양피지 팔레트 ── */
-const OCEAN = '#d8cfb6';
-const RING = '#bcb193';
-const COAST_INK = '#6e6349';
-const LAND_BASE = '#cdd0a2';   // 평지 = 은은한 세이지 그린
-const BAND_MID = '#d4cda2';    // 고원 평지 — 누런기
-const BAND_HILL = '#c8b98f';   // 구릉
-const BAND_MTN = '#bfae88';    // 산
+const OCEAN = '#dbd0b0';       // 바다 = 따뜻한 양피지
+const RING = '#c3b088';        // 해안 등고 링
+const COAST_INK = '#5c5138';   // 해안 잉크선 (진한 세피아)
+const COAST_OUTER = '#a8946a'; // 이중선 바깥쪽 (옅은 세피아)
+const LAND_BASE = '#cdd3a0';   // 평지 = 은은한 세이지 그린
+const BAND_MID = '#d3cf9a';    // 고원 평지 — 누런기
+const BAND_HILL = '#c6b586';   // 구릉
+const BAND_MTN = '#b6a279';    // 산
+const SPECKLE = '#8a7c56';     // 종이 얼룩 점
 const RIVER = '#8fa3ab';
 const INK = '#5f543d';         // 장식 공용 잉크
 const MTN_FILL = '#cbbc9a';
@@ -77,7 +79,10 @@ function mountainGlyph(x: number, y: number, s: number, seed = 0): string {
     const sx = x + (lean > 0 ? -1 : 1) * s * 0.7;
     sub = `<path d="M${(sx - ss).toFixed(1)},${base.toFixed(1)} Q${sx.toFixed(1)},${(y - ss).toFixed(1)} ${(sx + ss).toFixed(1)},${base.toFixed(1)}" fill="${MTN_FILL}" stroke="${INK}" stroke-width="0.9" stroke-linejoin="round"/>`;
   }
-  return sub + `<path d="${body}" fill="${MTN_FILL}" stroke="${INK}" stroke-width="1.1" stroke-linejoin="round"/>` + hatch;
+  // 좌사면 하이라이트(햇빛 받는 면) — 정상에서 왼쪽 아래로 밝은 면
+  const highlight =
+    `<path d="M${ax.toFixed(1)},${top.toFixed(1)} L${(l + (ax - l) * 0.5).toFixed(1)},${(base - (base - top) * 0.25).toFixed(1)} L${(ax - s * 0.15).toFixed(1)},${base.toFixed(1)} Z" fill="#e4dcc0" fill-opacity="0.45"/>`;
+  return sub + `<path d="${body}" fill="${MTN_FILL}" stroke="${INK}" stroke-width="1.1" stroke-linejoin="round"/>` + highlight + hatch;
 }
 
 function treeGlyph(x: number, y: number, s: number): string {
@@ -164,6 +169,25 @@ export type RenderOptions = {
 export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
   const loops = extractCoastLoops(t).map((l) => chaikin(l, 2));
   const coastPath = loopsToPath(loops);
+
+  // 2) 종이 질감: 필터 대신 정적 점을 결정적으로 뿌림 (웹뷰 안전)
+  let speckle = '';
+  {
+    const cols = Math.round(t.width / 26);
+    const rows = Math.round(t.height / 26);
+    for (let gx = 0; gx < cols; gx++) {
+      for (let gy = 0; gy < rows; gy++) {
+        const h = Math.sin(gx * 12.9898 + gy * 78.233) * 43758.5453;
+        const rnd = h - Math.floor(h);
+        if (rnd > 0.55) {
+          const px = (gx + (rnd * 3 % 1)) * 26;
+          const py = (gy + (rnd * 7 % 1)) * 26;
+          const rr = 0.4 + (rnd * 5 % 1) * 0.7;
+          speckle += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${rr.toFixed(2)}" fill="${SPECKLE}" fill-opacity="${(0.05 + (rnd * 11 % 1) * 0.06).toFixed(3)}"/>`;
+        }
+      }
+    }
+  }
 
   const maxH = Math.max(...t.heights);
   const rel = (i: number) =>
@@ -422,9 +446,13 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     `<g clip-path="url(#land)">${trees}</g>` +
     `<g clip-path="url(#land)">${desertDots}</g>` +
     `<g clip-path="url(#land)">${glyphs}</g>` +
-    `<path d="${coastPath}" fill="none" stroke="${COAST_INK}" stroke-width="1.8" stroke-linejoin="round"/>` +
+    // 이중 해안선: 바깥 옅은 세피아 굵은 선 → 안쪽 진한 선 (펜으로 두 번 그은 고지도 느낌)
+    `<path d="${coastPath}" fill="none" stroke="${COAST_OUTER}" stroke-width="3.6" stroke-opacity="0.5" stroke-linejoin="round"/>` +
+    `<path d="${coastPath}" fill="none" stroke="${COAST_INK}" stroke-width="1.6" stroke-linejoin="round"/>` +
     graticule +
     seaDecor +
+    // 종이 질감 (지형 위, 프레임 아래)
+    `<g pointer-events="none">${speckle}</g>` +
     frame +
     cartouche +
     legend +
