@@ -108,6 +108,11 @@
   $: pins = ((selected?.attributes as any)?.pins ?? []) as MapPin[];
 
   let editMode = false;
+  let fullscreen = false; // 지도 전체화면 모드
+  // 전체화면일 때 배경 페이지 스크롤 잠금 (스크롤바 겹침 방지)
+  $: if (typeof document !== 'undefined') {
+    document.body.style.overflow = fullscreen ? 'hidden' : '';
+  }
 
   /* ── 핀 저장 ── */
   function savePins(next: MapPin[]) {
@@ -204,6 +209,13 @@
     {/if}
 
     {#if selected}
+      <button
+        on:click={() => (fullscreen = true)}
+        class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border border-line text-muted hover:border-primary transition"
+        title="지도 전체화면"
+      >
+        ⛶ 전체화면
+      </button>
       <button
         on:click={() => (editMode = !editMode)}
         class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition
@@ -334,4 +346,24 @@
       </div>
     {/if}
   </div>
+
+  <!-- 전체화면 모드: 사이드바·헤더 없이 지도만 -->
+  {#if fullscreen && selected}
+    <div class="fixed inset-0 z-50 bg-[#0f172a] overflow-hidden">
+      <MapViewer
+        image={(selected.attributes as any).mapImage}
+        {pins}
+        pinStyle={(selected.attributes as any).mapGen ? 'antique' : 'default'}
+        onPinClick={handlePinClick}
+      />
+      <button
+        on:click={() => (fullscreen = false)}
+        class="absolute top-4 left-4 z-10 px-4 py-2 rounded-xl bg-black/60 border border-white/10 text-slate-200 text-sm font-bold backdrop-blur hover:border-indigo-500 transition"
+      >
+        ✕ 닫기
+      </button>
+    </div>
+  {/if}
 </div>
+
+<svelte:window on:keydown={(e) => { if (e.key === 'Escape' && fullscreen) fullscreen = false; }} />

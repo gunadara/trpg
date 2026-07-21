@@ -34,6 +34,16 @@
   function zoomIn() { zoom = Math.min(400, zoom + 50); }
   function zoomOut() { zoom = Math.max(Math.min(fitZoom, 100), zoom - 50); }
 
+  // PC 마우스 휠 줌 (Ctrl 없이도 휠로 확대/축소)
+  function onWheelZoom(e: WheelEvent) {
+    if (selectable) return; // 지역 선택 중엔 스크롤 유지
+    e.preventDefault();
+    const step = e.deltaY < 0 ? 15 : -15;
+    const floor = Math.min(fitZoom, 100);
+    const next = zoom + step;
+    zoom = Math.max(floor, Math.min(500, next));
+  }
+
   /* ── 핀치 줌 (모바일 두 손가락) ── */
   const activePointers = new Map<number, { x: number; y: number }>();
   let pinchStartDist = 0;
@@ -125,13 +135,14 @@
 <div class="relative w-full h-full bg-[#0f172a] rounded-2xl border border-slate-800 overflow-hidden">
   <!-- 스크롤 영역 -->
   <div
-    class="w-full h-full overflow-auto flex"
+    class="w-full h-full overflow-auto flex map-scroll"
     bind:clientWidth={cw}
     bind:clientHeight={ch}
     on:pointerdown={onPointerDownZoom}
     on:pointermove={onPointerMoveZoom}
     on:pointerup={onPointerUpZoom}
     on:pointercancel={onPointerUpZoom}
+    on:wheel={onWheelZoom}
     style={selectable ? '' : 'touch-action: pan-x pan-y pinch-zoom;'}
   >
     <!-- 이미지 + 핀 레이어 (이미지 크기에 맞춰 핀이 따라감) -->
@@ -207,3 +218,9 @@
     </div>
   {/if}
 </div>
+
+<style>
+  /* 지도 스크롤바 숨김 (스크롤·팬은 유지) — 이중 스크롤바 방지 */
+  .map-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+  .map-scroll::-webkit-scrollbar { display: none; }
+</style>
