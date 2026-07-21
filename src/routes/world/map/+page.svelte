@@ -349,14 +349,16 @@
 
   <!-- 전체화면 모드: 사이드바·헤더 없이 지도만 -->
   {#if fullscreen && selected}
-    <div class="fixed inset-0 z-50 bg-[#0f172a] overflow-hidden">
-      <MapViewer
-        image={(selected.attributes as any).mapImage}
-        {pins}
-        fullscreenMode={true}
-        pinStyle={(selected.attributes as any).mapGen ? 'antique' : 'default'}
-        onPinClick={handlePinClick}
-      />
+    <div class="fixed inset-0 z-50 bg-[#0f172a] overflow-hidden" style="height:100dvh;width:100vw;">
+      <div class="w-full h-full p-2">
+        <MapViewer
+          image={(selected.attributes as any).mapImage}
+          {pins}
+          fullscreenMode={true}
+          pinStyle={(selected.attributes as any).mapGen ? 'antique' : 'default'}
+          onPinClick={handlePinClick}
+        />
+      </div>
       <button
         on:click={() => (fullscreen = false)}
         class="absolute top-4 left-4 z-10 px-4 py-2 rounded-xl bg-black/60 border border-white/10 text-slate-200 text-sm font-bold backdrop-blur hover:border-indigo-500 transition"

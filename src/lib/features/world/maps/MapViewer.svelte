@@ -28,7 +28,7 @@
   let natW = 0, natH = 0;       // 이미지 원본 크기
   $: fitZoom =
     cw > 0 && ch > 0 && natW > 0 && natH > 0
-      ? Math.min(100, ((ch * natW) / (natH * cw)) * 100)
+      ? Math.min(100, ((ch * natW) / (natH * cw)) * 100 * 0.98)
       : 100;
 
   function fit() { zoom = fitZoom; }
@@ -80,13 +80,21 @@
     const img = e.currentTarget as HTMLImageElement;
     natW = img.naturalWidth;
     natH = img.naturalHeight;
-    // 전체화면: 항상 화면맞춤 (지도 전체가 한눈에). 아니면 세로화면은 가로채움.
+    applyInitialZoom();
+  }
+  function applyInitialZoom() {
     if (fullscreenMode) {
       zoom = fitZoom;
     } else {
       const portrait = ch > cw;
       zoom = portrait ? 100 : fitZoom;
     }
+  }
+  // 전체화면: 컨테이너 크기가 처음 확정될 때 한 번만 화면맞춤 (이후 휠 줌 자유)
+  let fsFitted = false;
+  $: if (fullscreenMode && cw > 0 && ch > 0 && natW > 0 && natH > 0 && !fsFitted) {
+    zoom = fitZoom;
+    fsFitted = true;
   }
 
   function handleMapClick(e: MouseEvent) {

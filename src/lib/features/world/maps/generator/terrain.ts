@@ -107,7 +107,7 @@ export function buildWorldDef(opts: TerrainOptions): WorldDef {
     }
     contCenters.push(best);
   }
-  const contR = ((region ? 0.82 : nCont === 1 ? 0.74 : nCont === 2 ? 0.46 : 0.40) * Math.min(width, height)) / (nCont === 1 ? 1 : Math.sqrt(nCont));
+  const contR = ((region ? 0.82 : nCont === 1 ? 0.74 : nCont === 2 ? 0.6 : 0.52) * Math.min(width, height)) / (nCont === 1 ? 1 : Math.sqrt(nCont));
 
   // 각 대륙에 로브(돌출부)를 붙여 큰 본체를 만든다. 대륙이 많을수록 로브를 작게/적게
   // 해서 옆 대륙과 안 붙게 한다.
