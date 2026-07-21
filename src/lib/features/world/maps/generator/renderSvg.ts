@@ -166,6 +166,57 @@ export type RenderOptions = {
   riversOverride?: [number, number][][];
 };
 
+/* ── 지도 느낌: 자동 지명 생성 (가짜 한글, 고증 무시) ── */
+const NAME_A = ['가','노','도','라','마','바','사','아','자','카','타','파','하','네','레','메','베','세','에','오','우','유','이','히','카','란','발','텔','실','모','룬','아즈','벨','카르','드라','엘','오르','윈','펜','실버','노른'];
+const NAME_B = ['린','론','산','성','펠','시아','토','리아','네스','가르','돔','벨','란트','포드','헤임','가드','윅','스톤','무어','데일','홀름','반','키아','로스','미르','텐','베른','할'];
+const SEA_SUFFIX = ['해','대해','만','해협','내해'];
+const MTN_SUFFIX = ['산맥','산','고원','봉'];
+const LAND_SUFFIX = ['','', '평원','왕국','지방','계곡','숲'];
+
+function pick<T>(arr: T[], r: number): T { return arr[Math.floor(r * arr.length) % arr.length]; }
+function genName(r1: number, r2: number, suffix: string): string {
+  return pick(NAME_A, r1) + pick(NAME_B, r2) + suffix;
+}
+
+/* 라벨: 살짝 자간 벌린 세리프 (고지도 느낌). letter-spacing으로 */
+function mapLabel(
+  x: number, y: number, text: string,
+  opts: { size?: number; angle?: number; ink?: string; spacing?: number } = {}
+): string {
+  const size = opts.size ?? 16;
+  const angle = opts.angle ?? 0;
+  const ink = opts.ink ?? '#4a4030';
+  const sp = opts.spacing ?? size * 0.14;
+  const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  return (
+    `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" ` +
+    `font-family="${SERIF}" font-size="${size}" font-style="italic" font-weight="600" ` +
+    `letter-spacing="${sp.toFixed(1)}" fill="${ink}" fill-opacity="0.72" ` +
+    `transform="rotate(${angle.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})" ` +
+    `paint-order="stroke" stroke="#e8e0c8" stroke-width="2.5" stroke-opacity="0.5">${esc}</text>`
+  );
+}
+
+/* 바다 괴물(크라켄) 삽화 — "여기 용이 산다" 류 */
+function seaMonster(x: number, y: number, s: number, ink: string): string {
+  const arm = (a: number) => {
+    const x2 = x + Math.cos(a) * s * 1.4, y2 = y + Math.sin(a) * s * 1.4;
+    const cx = x + Math.cos(a) * s * 0.7 + Math.cos(a + 1.5) * s * 0.6;
+    const cy = y + Math.sin(a) * s * 0.7 + Math.sin(a + 1.5) * s * 0.6;
+    return `<path d="M${x.toFixed(1)},${y.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}" fill="none" stroke="${ink}" stroke-width="1.3" stroke-linecap="round" stroke-opacity="0.5"/>`;
+  };
+  let arms = '';
+  for (let k = 0; k < 6; k++) arms += arm((k / 6) * Math.PI * 2 + 0.3);
+  return (
+    `<g>` +
+    arms +
+    `<ellipse cx="${x.toFixed(1)}" cy="${(y - s * 0.3).toFixed(1)}" rx="${(s * 0.7).toFixed(1)}" ry="${(s * 0.9).toFixed(1)}" fill="#cbbc9a" fill-opacity="0.5" stroke="${ink}" stroke-width="1.3" stroke-opacity="0.5"/>` +
+    `<circle cx="${(x - s * 0.25).toFixed(1)}" cy="${(y - s * 0.4).toFixed(1)}" r="1.5" fill="${ink}" fill-opacity="0.6"/>` +
+    `<circle cx="${(x + s * 0.25).toFixed(1)}" cy="${(y - s * 0.4).toFixed(1)}" r="1.5" fill="${ink}" fill-opacity="0.6"/>` +
+    `</g>`
+  );
+}
+
 export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
   const loops = extractCoastLoops(t).map((l) => chaikin(l, 2));
   const coastPath = loopsToPath(loops);
@@ -349,6 +400,96 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     )
     .join('');
 
+  /* ── 지도 느낌 (a) 지명 라벨 ── */
+  // 시드 기반 결정적 난수
+  let seedN = 0;
+  for (let k = 0; k < t.seed.length; k++) seedN = (seedN * 31 + t.seed.charCodeAt(k)) >>> 0;
+  const srand = () => { seedN = (seedN * 1103515245 + 12345) & 0x7fffffff; return seedN / 0x7fffffff; };
+
+  const labels: string[] = [];
+
+  // 육지 라벨: 각 큰 땅덩어리(외곽 루프)의 무게중심에 지역명
+  const landLoops = loops.filter((lp) => {
+    // 외곽만 (면적 큰 것) — 넓이 근사
+    let area = 0;
+    for (let i = 0; i < lp.length; i++) {
+      const [x1, y1] = lp[i], [x2, y2] = lp[(i + 1) % lp.length];
+      area += x1 * y2 - x2 * y1;
+    }
+    return Math.abs(area / 2) > (t.width * t.height) * 0.012;
+  });
+  for (const lp of landLoops) {
+    let cx = 0, cy = 0;
+    for (const [x, y] of lp) { cx += x; cy += y; }
+    cx /= lp.length; cy /= lp.length;
+    const nm = genName(srand(), srand(), pick(LAND_SUFFIX, srand()));
+    labels.push(mapLabel(cx, cy, nm, { size: 20, angle: (srand() - 0.5) * 10 }));
+  }
+
+  // 산맥 라벨: 산 글리프가 몰린 곳 (mtnCells 중심)에 ○○산맥
+  if (mtnCells.length > 8) {
+    let mx = 0, my = 0;
+    for (const i of mtnCells) { mx += t.centers[i][0]; my += t.centers[i][1]; }
+    mx /= mtnCells.length; my /= mtnCells.length;
+    const nm = genName(srand(), srand(), pick(MTN_SUFFIX, srand()));
+    labels.push(mapLabel(mx, my - 20, nm, { size: 15, angle: -8, ink: '#5f543d' }));
+  }
+
+  // 바다 라벨 + 방위선 + 괴물: 큰 빈 바다 영역 찾기
+  // 화면을 격자로 나눠 '가장 바다다운' 셀 몇 개 고름
+  const gx0 = 4, gy0 = 3;
+  const seaSpots: { x: number; y: number; score: number }[] = [];
+  for (let gx = 0; gx < gx0; gx++) {
+    for (let gy = 0; gy < gy0; gy++) {
+      const cx = (gx + 0.5) * (t.width / gx0);
+      const cy = (gy + 0.5) * (t.height / gy0);
+      // 근처 셀들이 바다인지
+      let sea = 0, cnt = 0;
+      for (let i = 0; i < t.centers.length; i++) {
+        if (Math.abs(t.centers[i][0] - cx) < t.width / gx0 / 2 && Math.abs(t.centers[i][1] - cy) < t.height / gy0 / 2) {
+          cnt++; if (isSea(i)) sea++;
+        }
+      }
+      if (cnt > 0 && sea / cnt > 0.9) seaSpots.push({ x: cx, y: cy, score: sea / cnt });
+    }
+  }
+  // 바다 라벨 1~2개
+  const shuffledSea = seaSpots.sort(() => srand() - 0.5);
+  shuffledSea.slice(0, Math.min(2, shuffledSea.length)).forEach((sp) => {
+    const nm = genName(srand(), srand(), pick(SEA_SUFFIX, srand()));
+    labels.push(mapLabel(sp.x, sp.y, nm, { size: 17, angle: (srand() - 0.5) * 8, ink: '#5b6d78' }));
+  });
+
+  /* ── 지도 느낌 (c) 방위선(rhumb line) + 바다 괴물 ── */
+  // 나침반 위치는 아래에서 정해지므로 먼저 계산
+  const inset0 = 78;
+  const cand0: [number, number][] = [
+    [t.width - inset0, inset0], [inset0, inset0], [inset0, t.height - inset0 - 30]
+  ];
+  let rc = cand0[0], rbest = Infinity;
+  for (const [ccx, ccy] of cand0) {
+    let s = 0, c = 0;
+    for (let i = 0; i < t.centers.length; i++) {
+      if (Math.abs(t.centers[i][0] - ccx) < 110 && Math.abs(t.centers[i][1] - ccy) < 110) { s += t.heights[i]; c++; }
+    }
+    const avg = c ? s / c : 1;
+    if (avg < rbest) { rbest = avg; rc = [ccx, ccy]; }
+  }
+  // 방위선: 나침반 지점에서 16방위로 옅게 뻗기 (바다 위에만 보이도록 육지 클립 밖)
+  let rhumb = '';
+  const diag = Math.hypot(t.width, t.height);
+  for (let k = 0; k < 16; k++) {
+    const a = (k / 16) * Math.PI * 2;
+    rhumb += `<line x1="${rc[0]}" y1="${rc[1]}" x2="${(rc[0] + Math.cos(a) * diag).toFixed(0)}" y2="${(rc[1] + Math.sin(a) * diag).toFixed(0)}" stroke="${COAST_INK}" stroke-width="0.5" stroke-opacity="0.12"/>`;
+  }
+
+  // 바다 괴물: 라벨 안 붙은 바다 spot 하나에
+  let monster = '';
+  if (shuffledSea.length > 2) {
+    const m = shuffledSea[shuffledSea.length - 1];
+    monster = seaMonster(m.x, m.y, 16, COAST_INK);
+  }
+
   /* 프레임: 이중선 + 모서리 사각 장식 */
   const f1 = 10, f2 = 18;
   const cornerTick = (x: number, y: number) =>
@@ -433,12 +574,14 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     `<defs>` +
     `<clipPath id="land"><path d="${coastPath}" fill-rule="evenodd"/></clipPath>` +
     `<radialGradient id="vig" cx="50%" cy="50%" r="72%">` +
-    `<stop offset="70%" stop-color="${INK}" stop-opacity="0"/>` +
-    `<stop offset="100%" stop-color="${INK}" stop-opacity="0.16"/>` +
+    `<stop offset="55%" stop-color="#6b5836" stop-opacity="0"/>` +
+    `<stop offset="88%" stop-color="#6b5836" stop-opacity="0.10"/>` +
+    `<stop offset="100%" stop-color="#4a3a20" stop-opacity="0.28"/>` +
     `</radialGradient>` +
     `</defs>` +
     `<rect width="${t.width}" height="${t.height}" fill="${OCEAN}"/>` +
     `<g opacity="0.55">${deepPaths.join('')}</g>` +
+    rhumb +
     rings +
     `<path d="${coastPath}" fill="${LAND_BASE}" fill-rule="evenodd"/>` +
     `<g clip-path="url(#land)" opacity="0.65">${bandPaths.join('')}</g>` +
@@ -451,12 +594,14 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     `<path d="${coastPath}" fill="none" stroke="${COAST_INK}" stroke-width="1.6" stroke-linejoin="round"/>` +
     graticule +
     seaDecor +
+    // 지명 라벨 (지형·해안선 위)
+    labels.join('') +
     // 종이 질감 (지형 위, 프레임 아래)
     `<g pointer-events="none">${speckle}</g>` +
     frame +
     cartouche +
     legend +
-    compassRose(bestCorner[0], bestCorner[1], 34) +
+    compassRose(bestCorner[0], bestCorner[1], 46) +
     scaleBar(42, t.height - 40, opts.scale === 'region' ? 50 : 250) +
     `<rect width="${t.width}" height="${t.height}" fill="url(#vig)" pointer-events="none"/>` +
     `</svg>`

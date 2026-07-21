@@ -89,15 +89,15 @@ export function buildWorldDef(opts: TerrainOptions): WorldDef {
   const fbmDetail = makeFbm(rand, 2);     // 잔 디테일 (지역 줌에서 해안 굴곡 담당)
   const fbmMoist = makeFbm(rand);         // 습도
 
-  /* 대륙 중심점 */
+  /* 대륙 중심점 — 여러 개일 때 서로 확실히 떨어지도록 강하게 분리 */
   const contCenters: [number, number][] = [];
   for (let c = 0; c < nCont; c++) {
-    let best: [number, number] = [0, 0];
+    let best: [number, number] = [width / 2, height / 2];
     let bestScore = -1;
-    for (let attempt = 0; attempt < 24; attempt++) {
+    for (let attempt = 0; attempt < 60; attempt++) {
       const p: [number, number] = [
-        (0.22 + rand() * 0.56) * width,
-        (0.22 + rand() * 0.56) * height
+        (0.24 + rand() * 0.52) * width,
+        (0.24 + rand() * 0.52) * height
       ];
       const score =
         contCenters.length === 0
@@ -107,7 +107,31 @@ export function buildWorldDef(opts: TerrainOptions): WorldDef {
     }
     contCenters.push(best);
   }
-  const contR = ((region ? 0.78 : 0.52) * Math.min(width, height)) / Math.sqrt(nCont);
+  const contR = ((region ? 0.82 : nCont === 1 ? 0.74 : nCont === 2 ? 0.46 : 0.40) * Math.min(width, height)) / (nCont === 1 ? 1 : Math.sqrt(nCont));
+
+  // 각 대륙에 로브(돌출부)를 붙여 큰 본체를 만든다. 대륙이 많을수록 로브를 작게/적게
+  // 해서 옆 대륙과 안 붙게 한다.
+  type Lobe = { x: number; y: number; r: number };
+  const lobeReach = nCont === 1 ? 0.85 : 0.4;   // 로브가 중심에서 뻗는 거리 비율
+  const lobeSize = nCont === 1 ? 0.6 : 0.38;   // 로브 크기 비율
+  const lobeMax = nCont === 1 ? 6 : 3;
+  const contLobes: Lobe[][] = contCenters.map(([ccx, ccy]) => {
+    const lobes: Lobe[] = [{ x: ccx, y: ccy, r: contR }];
+    const nLobe = (nCont === 1 ? 4 : 2) + Math.floor(rand() * (lobeMax - 1));
+    for (let i = 0; i < nLobe; i++) {
+      const a = rand() * Math.PI * 2;
+      const d = contR * (0.4 + rand() * lobeReach);
+      // 단일 대륙은 가로로 더 퍼지게 (x방향 거리 1.35배)
+      const dx = Math.cos(a) * d * (nCont === 1 ? 1.35 : 1);
+      const dy = Math.sin(a) * d * (nCont === 1 ? 0.85 : 1);
+      lobes.push({
+        x: ccx + dx,
+        y: ccy + dy,
+        r: contR * (0.35 + rand() * lobeSize)
+      });
+    }
+    return lobes;
+  });
 
   /* 산맥(능선) */
   type Ridge = { pts: [number, number][]; w: number };
@@ -156,20 +180,22 @@ export function buildWorldDef(opts: TerrainOptions): WorldDef {
   const freq = (region ? 3.2 : 1.8) / Math.max(width, height);
   const freqD = 24 / Math.max(width, height); // 디테일 파장 ≈ 세계폭/24
   const freqM = 2.6 / Math.max(width, height);
-  const margin = (region ? 0.035 : 0.07) * Math.min(width, height);
+  const margin = (region ? 0.035 : nCont === 1 ? 0.06 : 0.07) * Math.min(width, height);
 
   const heightAt = (x: number, y: number): number => {
     const n01 = fbmElev(x * freq, y * freq) * 0.5 + 0.5;
     const detail = fbmDetail(x * freqD, y * freqD); // -1~1, 소진폭
 
     let mask = 0;
-    for (const [cx, cy] of contCenters) {
-      const d = Math.hypot(x - cx, y - cy) / contR;
-      mask = Math.max(mask, Math.exp(-d * d * 1.5));
+    for (const lobes of contLobes) {
+      for (const lb of lobes) {
+        const d = Math.hypot(x - lb.x, y - lb.y) / lb.r;
+        mask = Math.max(mask, Math.exp(-d * d * 1.1));
+      }
     }
     for (const isl of isles) {
       const d = Math.hypot(x - isl.x, y - isl.y) / isl.r;
-      mask = Math.max(mask, Math.exp(-d * d * 1.6) * 0.95);
+      mask = Math.max(mask, Math.exp(-d * d * 1.6) * 0.8);
     }
 
     let ridge = 0;
@@ -184,7 +210,7 @@ export function buildWorldDef(opts: TerrainOptions): WorldDef {
     const e = Math.max(0, Math.min(1, edgeD));
     const edgeMask = e * e * (3 - 2 * e);
 
-    const h = (n01 * 0.5 + detail * 0.05 + mask * 0.52 - 0.13 + ridge * 0.38) * edgeMask;
+    const h = (mask * 0.82 + n01 * 0.28 + detail * 0.06 - 0.24 + ridge * 0.3) * edgeMask;
     return Math.max(0, Math.min(1, h));
   };
 
