@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
 
-  // items: 원판에 올라갈 항목 (부모가 ROULETTE_MAX개 이하로 잘라서 넘김)
+  // items: 원판에 올라갈 항목 (부모가 18개 이하로 잘라서 넘김)
   export let items: string[] = [];
   export let autoSpin = false;
 
@@ -11,8 +11,8 @@
 
   const dispatch = createEventDispatcher<{ result: { tag: string } }>();
 
+  // 다크 배경에서 균일한 밝기로 어울리는 뮤트 보석톤 (18개여도 인접 중복 없음)
   // 색은 '단어'에 묶는다 → 같은 단어면 같은 색, 다른 단어면 다른 색.
-  // 화면에 등장하는 고유 단어들에 색상환을 균등 배분.
   $: uniqueTags = [...new Set(items)];
   $: colorOf = (tag: string): string => {
     const idx = uniqueTags.indexOf(tag);
@@ -21,6 +21,8 @@
     const hue = Math.round((idx * (360 / total) + idx * 7) % 360);
     return `hsl(${hue} 42% 52%)`;
   };
+  $: opacityOf = (tag: string): number =>
+    uniqueTags.indexOf(tag) % 2 === 0 ? 0.95 : 0.82;
 
   let rotation = 0;
   let spinning = false;
@@ -49,7 +51,7 @@
     return { ...p, angle: mid };
   }
 
-  // 원판 그대로 두고 라벨만 잘라 표시 (조각이 얇을수록 짧게)
+  // 원판 그대로 두고 라벨만 잘라 표시
   function trim(s: string) {
     const max = n > 18 ? 4 : n > 12 ? 5 : n > 8 ? 7 : 9;
     return s.length > max ? s.slice(0, max) + '…' : s;
@@ -88,7 +90,7 @@
                transition: {spinning ? 'transform 3.5s cubic-bezier(0.12, 0.65, 0.18, 1)' : 'none'};"
       >
         {#each items as item, i}
-          <path d={segPath(i)} fill={colorOf(item)} fill-opacity={uniqueTags.indexOf(item) % 2 === 0 ? 0.95 : 0.82} stroke="#2a2521" stroke-width="1.5" />
+          <path d={segPath(i)} fill={colorOf(item)} fill-opacity={opacityOf(item)} stroke="#2a2521" stroke-width="1.5" />
           {@const lp = labelPos(i)}
           <text
             x={lp.x} y={lp.y}
