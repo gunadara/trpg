@@ -11,14 +11,16 @@
 
   const dispatch = createEventDispatcher<{ result: { tag: string } }>();
 
-  // 항목 수에 맞춰 색상환을 균등 분할 → 서로 다른 조각은 항상 다른 색(겹침 없음).
-  // 다크 배경에 어울리도록 채도·명도는 고정한 뮤트 보석톤.
-  function segColor(i: number, total: number): string {
+  // 색은 '단어'에 묶는다 → 같은 단어면 같은 색, 다른 단어면 다른 색.
+  // 화면에 등장하는 고유 단어들에 색상환을 균등 배분.
+  $: uniqueTags = [...new Set(items)];
+  $: colorOf = (tag: string): string => {
+    const idx = uniqueTags.indexOf(tag);
+    const total = uniqueTags.length;
     if (total <= 1) return 'hsl(30 45% 52%)';
-    // 황금각으로 흩되 인덱스 순이라 인접도 확실히 구분되게 살짝 오프셋
-    const hue = Math.round((i * (360 / total) + i * 7) % 360);
+    const hue = Math.round((idx * (360 / total) + idx * 7) % 360);
     return `hsl(${hue} 42% 52%)`;
-  }
+  };
 
   let rotation = 0;
   let spinning = false;
@@ -86,7 +88,7 @@
                transition: {spinning ? 'transform 3.5s cubic-bezier(0.12, 0.65, 0.18, 1)' : 'none'};"
       >
         {#each items as item, i}
-          <path d={segPath(i)} fill={segColor(i, n)} fill-opacity={i % 2 === 0 ? 0.95 : 0.82} stroke="#2a2521" stroke-width="1.5" />
+          <path d={segPath(i)} fill={colorOf(item)} fill-opacity={uniqueTags.indexOf(item) % 2 === 0 ? 0.95 : 0.82} stroke="#2a2521" stroke-width="1.5" />
           {@const lp = labelPos(i)}
           <text
             x={lp.x} y={lp.y}

@@ -8,6 +8,10 @@
     tagStore.load();
     const s = localStorage.getItem('drawStyle');
     if (s === 'slot' || s === 'roulette') drawStyle = s;
+    const ws = parseInt(localStorage.getItem('wheelSlots') ?? '', 10);
+    if (!Number.isNaN(ws) && ws >= 2 && ws <= 24) wheelSlots = ws;
+    const fm = localStorage.getItem('fillMode');
+    if (fm === 'shuffle' || fm === 'group') fillMode = fm;
   });
 
   // 뽑기 연출 방식
@@ -67,6 +71,42 @@
   const ROULETTE_MAX = 24;
   let roulettePool: { tag: string; source: string | null }[] = [];
   let rouletteKey = 0;
+  let wheelSlots = 12;                          // 목표 칸 수 (단어가 적으면 복제해 채움)
+  let fillMode: 'shuffle' | 'group' = 'shuffle'; // 섞기 / 뭉치기
+  $: { try { localStorage.setItem('wheelSlots', String(wheelSlots)); localStorage.setItem('fillMode', fillMode); } catch {} }
+
+  // 단어 풀을 목표 칸 수만큼 복제 배분 (나머지는 앞쪽부터 +1로 최대한 고르게)
+  function fillWheel(
+    pool: { tag: string; source: string | null }[],
+    slots: number
+  ): { tag: string; source: string | null }[] {
+    const uniq = pool.filter((p, i) => pool.findIndex((q) => q.tag === p.tag) === i);
+    if (uniq.length === 0) return [];
+    // 단어가 목표보다 많으면 복제 없이 무작위로 slots개
+    if (uniq.length >= slots) {
+      return [...uniq].sort(() => Math.random() - 0.5).slice(0, slots);
+    }
+    const base = Math.floor(slots / uniq.length);
+    let rem = slots % uniq.length;
+    const counts = uniq.map(() => base);
+    for (let i = 0; i < rem; i++) counts[i] += 1; // 나머지 분산
+
+    const out: { tag: string; source: string | null }[] = [];
+    if (fillMode === 'group') {
+      // 뭉치기: 같은 단어를 붙여서
+      uniq.forEach((p, i) => { for (let k = 0; k < counts[i]; k++) out.push(p); });
+    } else {
+      // 섞기: 라운드로빈으로 돌아가며
+      const left = [...counts];
+      let placed = 0;
+      while (placed < slots) {
+        for (let i = 0; i < uniq.length; i++) {
+          if (left[i] > 0) { out.push(uniq[i]); left[i]--; placed++; }
+        }
+      }
+    }
+    return out;
+  }
 
   // 선택된 방식으로 실행 (큰 뽑기 버튼)
   function rollGroup() {
@@ -127,10 +167,10 @@
     }
   }
 
-  // 룰렛 판 세팅 (풀에서 최대 ROULETTE_MAX개만 무작위로 올림)
+  // 룰렛 판 세팅 (목표 칸 수만큼 채움 — 단어가 적으면 복제, 많으면 무작위 선별)
   function startRoulette(pool: { tag: string; source: string | null }[]) {
-    const shuffled = [...pool].sort(() => Math.random() - 0.5);
-    roulettePool = shuffled.slice(0, Math.min(ROULETTE_MAX, shuffled.length));
+    const slots = Math.min(ROULETTE_MAX, Math.max(2, wheelSlots));
+    roulettePool = fillWheel(pool, slots);
     rouletteKey += 1;
     results = [];
     rolled = false;
@@ -235,7 +275,20 @@
                 <span class="text-[11px] text-muted">개</span>
               </span>
             {:else}
-              <span class="text-[11px] text-muted">한 번에 1개 · 판에는 최대 {ROULETTE_MAX}개</span>
+              <span class="flex items-center gap-1 ms-1">
+                <span class="text-[11px] text-muted me-1">칸</span>
+                <button on:click={() => (wheelSlots = Math.max(2, wheelSlots - 1))} class="w-7 h-7 rounded border border-line text-muted hover:border-amber-500/40">−</button>
+                <span class="text-sm text-muted w-6 text-center">{wheelSlots}</span>
+                <button on:click={() => (wheelSlots = Math.min(ROULETTE_MAX, wheelSlots + 1))} class="w-7 h-7 rounded border border-line text-muted hover:border-amber-500/40">＋</button>
+              </span>
+              <span class="flex items-center gap-1">
+                <button on:click={() => (fillMode = 'shuffle')}
+                  class="px-2.5 py-1 rounded-lg text-[11px] font-bold border transition
+                         {fillMode === 'shuffle' ? 'border-amber-500 bg-amber-600/20 text-amber-200' : 'border-line text-muted hover:border-amber-500/40'}">🔀 섞기</button>
+                <button on:click={() => (fillMode = 'group')}
+                  class="px-2.5 py-1 rounded-lg text-[11px] font-bold border transition
+                         {fillMode === 'group' ? 'border-amber-500 bg-amber-600/20 text-amber-200' : 'border-line text-muted hover:border-amber-500/40'}">🧩 뭉치기</button>
+              </span>
             {/if}
           </div>
 
