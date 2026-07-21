@@ -442,30 +442,38 @@ export function svgToDataUrl(svg: string): string {
 
 /** SVG dataURL → PNG dataURL (내보내기·표시용, 브라우저 전용) */
 export async function svgDataUrlToPng(dataUrl: string, scale = 2): Promise<string> {
-  const img = new Image();
-  await new Promise<void>((res, rej) => {
-    img.onload = () => res();
-    img.onerror = () => rej(new Error('SVG 로드 실패'));
-    img.src = dataUrl;
-  });
-  // 일부 브라우저는 로드 직후 디코드가 안 끝나 있어 decode()로 확실히 대기
-  if ('decode' in img) { try { await img.decode(); } catch { /* 무시 */ } }
+  const bake = async (): Promise<string> => {
+    const img = new Image();
+    await new Promise<void>((res, rej) => {
+      img.onload = () => res();
+      img.onerror = () => rej(new Error('SVG 로드 실패'));
+      img.src = dataUrl;
+    });
+    // 일부 브라우저는 로드 직후 디코드가 안 끝나 있어 decode()로 확실히 대기
+    if ('decode' in img) { try { await img.decode(); } catch { /* 무시 */ } }
 
-  // 크기: naturalWidth가 미덥지 않으면 SVG의 viewBox에서 직접 읽음
-  let w = img.naturalWidth, h = img.naturalHeight;
-  if (!w || !h || w < 10 || h < 10) {
-    const m = decodeURIComponent(dataUrl).match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
-    if (m) { w = parseFloat(m[1]); h = parseFloat(m[2]); }
-  }
-  if (!w || !h) throw new Error('SVG 크기 파악 실패');
+    // 크기: naturalWidth가 미덥지 않으면 SVG의 viewBox에서 직접 읽음
+    let w = img.naturalWidth, h = img.naturalHeight;
+    if (!w || !h || w < 10 || h < 10) {
+      const m = decodeURIComponent(dataUrl).match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
+      if (m) { w = parseFloat(m[1]); h = parseFloat(m[2]); }
+    }
+    if (!w || !h) throw new Error('SVG 크기 파악 실패');
 
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(w * scale);
-  canvas.height = Math.round(h * scale);
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('canvas 미지원');
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  const png = canvas.toDataURL('image/png');
-  if (png.length < 2000) throw new Error('PNG 결과가 비정상 (빈 캔버스 의심)'); // 폴백 유도
-  return png;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('canvas 미지원');
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const png = canvas.toDataURL('image/png');
+    if (png.length < 2000) throw new Error('PNG 결과가 비정상 (빈 캔버스 의심)');
+    return png;
+  };
+
+  // 일부 태블릿 웹뷰는 decode/draw가 조용히 멎음 → 3초 넘으면 실패시켜 SVG 폴백
+  const timeout = new Promise<string>((_, rej) =>
+    setTimeout(() => rej(new Error('PNG 변환 시간 초과')), 3000)
+  );
+  return Promise.race([bake(), timeout]);
 }

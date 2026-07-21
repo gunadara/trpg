@@ -34,11 +34,46 @@
   function zoomIn() { zoom = Math.min(400, zoom + 50); }
   function zoomOut() { zoom = Math.max(Math.min(fitZoom, 100), zoom - 50); }
 
+  /* ── 핀치 줌 (모바일 두 손가락) ── */
+  const activePointers = new Map<number, { x: number; y: number }>();
+  let pinchStartDist = 0;
+  let pinchStartZoom = 100;
+  let pinching = false;
+
+  function pinchDist(): number {
+    const pts = [...activePointers.values()];
+    if (pts.length < 2) return 0;
+    return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+  }
+  function onPointerDownZoom(e: PointerEvent) {
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (activePointers.size === 2) {
+      pinching = true;
+      pinchStartDist = pinchDist();
+      pinchStartZoom = zoom;
+    }
+  }
+  function onPointerMoveZoom(e: PointerEvent) {
+    if (!activePointers.has(e.pointerId)) return;
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinching && activePointers.size >= 2 && pinchStartDist > 0) {
+      const ratio = pinchDist() / pinchStartDist;
+      zoom = Math.max(fitZoom, Math.min(500, pinchStartZoom * ratio));
+    }
+  }
+  function onPointerUpZoom(e: PointerEvent) {
+    activePointers.delete(e.pointerId);
+    if (activePointers.size < 2) pinching = false;
+  }
+
   function handleImgLoad(e: Event) {
     const img = e.currentTarget as HTMLImageElement;
     natW = img.naturalWidth;
     natH = img.naturalHeight;
-    fit(); // 지도가 열리면 항상 전체가 보이게
+    // 세로로 긴 화면(폰)에서 가로 지도를 fit하면 얇은 띠가 되므로,
+    // 그런 경우엔 가로 100%로 채우고 세로 스크롤이 되게 한다.
+    const portrait = ch > cw;
+    zoom = portrait ? 100 : fitZoom;
   }
 
   function handleMapClick(e: MouseEvent) {
@@ -89,7 +124,16 @@
 
 <div class="relative w-full h-full bg-[#0f172a] rounded-2xl border border-slate-800 overflow-hidden">
   <!-- 스크롤 영역 -->
-  <div class="w-full h-full overflow-auto flex" bind:clientWidth={cw} bind:clientHeight={ch}>
+  <div
+    class="w-full h-full overflow-auto flex"
+    bind:clientWidth={cw}
+    bind:clientHeight={ch}
+    on:pointerdown={onPointerDownZoom}
+    on:pointermove={onPointerMoveZoom}
+    on:pointerup={onPointerUpZoom}
+    on:pointercancel={onPointerUpZoom}
+    style={selectable ? '' : 'touch-action: pan-x pan-y pinch-zoom;'}
+  >
     <!-- 이미지 + 핀 레이어 (이미지 크기에 맞춰 핀이 따라감) -->
     <div
       class="relative inline-block m-auto {editable && !selectable ? 'cursor-crosshair' : ''} {selectable ? 'cursor-crosshair' : ''}"
