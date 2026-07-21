@@ -405,7 +405,7 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     cornerTick(f1, t.height - f1) + cornerTick(t.width - f1, t.height - f1);
 
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${t.width} ${t.height}">` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${t.width}" height="${t.height}" viewBox="0 0 ${t.width} ${t.height}">` +
     `<defs>` +
     `<clipPath id="land"><path d="${coastPath}" fill-rule="evenodd"/></clipPath>` +
     `<radialGradient id="vig" cx="50%" cy="50%" r="72%">` +
@@ -440,7 +440,7 @@ export function svgToDataUrl(svg: string): string {
   return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
 }
 
-/** SVG dataURL → PNG dataURL (내보내기용, 브라우저 전용) */
+/** SVG dataURL → PNG dataURL (내보내기·표시용, 브라우저 전용) */
 export async function svgDataUrlToPng(dataUrl: string, scale = 2): Promise<string> {
   const img = new Image();
   await new Promise<void>((res, rej) => {
@@ -448,11 +448,24 @@ export async function svgDataUrlToPng(dataUrl: string, scale = 2): Promise<strin
     img.onerror = () => rej(new Error('SVG 로드 실패'));
     img.src = dataUrl;
   });
+  // 일부 브라우저는 로드 직후 디코드가 안 끝나 있어 decode()로 확실히 대기
+  if ('decode' in img) { try { await img.decode(); } catch { /* 무시 */ } }
+
+  // 크기: naturalWidth가 미덥지 않으면 SVG의 viewBox에서 직접 읽음
+  let w = img.naturalWidth, h = img.naturalHeight;
+  if (!w || !h || w < 10 || h < 10) {
+    const m = decodeURIComponent(dataUrl).match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
+    if (m) { w = parseFloat(m[1]); h = parseFloat(m[2]); }
+  }
+  if (!w || !h) throw new Error('SVG 크기 파악 실패');
+
   const canvas = document.createElement('canvas');
-  canvas.width = img.naturalWidth * scale;
-  canvas.height = img.naturalHeight * scale;
+  canvas.width = Math.round(w * scale);
+  canvas.height = Math.round(h * scale);
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('canvas 미지원');
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL('image/png');
+  const png = canvas.toDataURL('image/png');
+  if (png.length < 2000) throw new Error('PNG 결과가 비정상 (빈 캔버스 의심)'); // 폴백 유도
+  return png;
 }
