@@ -1,7 +1,9 @@
 package com.sia.genesis;
 
 import android.os.Bundle;
-import android.view.View;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -12,7 +14,7 @@ public class MainActivity extends BridgeActivity {
         hideSystemUI();
     }
 
-    // 다이얼로그·스와이프 등으로 바가 다시 떠도 포커스 돌아오면 재숨김
+    // 바가 다시 떠도 포커스 돌아오면 재숨김
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
@@ -21,16 +23,17 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    // 몰입형 sticky: 상단 상태바 + 하단 내비바 모두 숨김, 가장자리 스와이프 시 일시 표시
+    // Android 11+(API 30) 호환: WindowInsetsControllerCompat 사용.
+    // 구형 setSystemUiVisibility는 최신 안드로이드에서 무시되어 폰에서 내비바가 안 사라졌음.
     private void hideSystemUI() {
-        View decorView = getWindow().getDecorView();
-        decorView.setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                        | View.SYSTEM_UI_FLAG_FULLSCREEN
-                        | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-        );
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        WindowInsetsControllerCompat controller =
+                WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        if (controller != null) {
+            controller.hide(WindowInsetsCompat.Type.systemBars());
+            controller.setSystemBarsBehavior(
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            );
+        }
     }
 }

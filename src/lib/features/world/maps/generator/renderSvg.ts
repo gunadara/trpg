@@ -460,9 +460,14 @@ export async function svgDataUrlToPng(dataUrl: string, scale = 2): Promise<strin
     }
     if (!w || !h) throw new Error('SVG 크기 파악 실패');
 
+    // 웹뷰 캔버스 최대 크기 한계(특히 삼성 웹뷰)를 넘으면 렌더가 깨진 픽셀로 나옴.
+    // 긴 변이 MAX_DIM을 넘지 않도록 scale을 자동으로 낮춘다.
+    const MAX_DIM = 2048;
+    const longest = Math.max(w, h) * scale;
+    const safeScale = longest > MAX_DIM ? (MAX_DIM / Math.max(w, h)) : scale;
     const canvas = document.createElement('canvas');
-    canvas.width = Math.round(w * scale);
-    canvas.height = Math.round(h * scale);
+    canvas.width = Math.round(w * safeScale);
+    canvas.height = Math.round(h * safeScale);
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('canvas 미지원');
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
