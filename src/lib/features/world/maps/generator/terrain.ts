@@ -359,6 +359,28 @@ function fillDepressions(heights: number[], neighbors: number[][], seaLevel: num
   }
   // 채운 높이 반영
   for (let i = 0; i < n; i++) heights[i] = filled[i];
+
+  // 좁쌀 웅덩이 제거: 물 찬 셀이 여러 개 '뭉친' 것만 진짜 호수로 인정.
+  // (연결된 호수 셀 군집 크기가 MIN_LAKE 미만이면 호수 표시 해제 = 평지 취급)
+  const MIN_LAKE = 8; // 이 셀 수 이상 뭉쳐야 호수
+  const visited = new Array(n).fill(false);
+  for (let s = 0; s < n; s++) {
+    if (!lake[s] || visited[s]) continue;
+    // BFS로 연결된 호수 군집 수집
+    const cluster: number[] = [];
+    const stack = [s];
+    visited[s] = true;
+    while (stack.length) {
+      const c = stack.pop()!;
+      cluster.push(c);
+      for (const nb of neighbors[c]) {
+        if (lake[nb] && !visited[nb]) { visited[nb] = true; stack.push(nb); }
+      }
+    }
+    if (cluster.length < MIN_LAKE) {
+      for (const c of cluster) lake[c] = false; // 너무 작으면 호수 취소
+    }
+  }
   return lake;
 }
 
