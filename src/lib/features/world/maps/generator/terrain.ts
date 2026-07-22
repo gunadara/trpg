@@ -307,6 +307,10 @@ export function sampleTerrain(
   // 침식이 판 웅덩이 → 물 채워 호수로. 넘치는 지점은 하류로 뚫어 강이 이어지게.
   const lake = fillDepressions(heights, neighbors, def.seaLevel);
 
+  // 내륙 바다 구멍 처리: 대양과 연결 안 된 바다 셀 덩어리를 찾아
+  // 큰 것은 호수로, 작은 것은 메워서 '바다색 구멍'이 안 남게 한다.
+  fillInlandSeas(heights, neighbors, def.seaLevel, lake, centers, outW, outH);
+
   /* ── 기후: 바람이 바다에서 습기를 싣고 오다 산맥을 넘으면 비를 뿌려 건조해짐(비그늘) ──
      탁월풍 방향으로 셀을 훑으며 습기를 전달, 고도 오를 때 비로 소모 */
   applyClimate(heights, moisture, centers, neighbors, def.seaLevel, outW);
@@ -316,6 +320,65 @@ export function sampleTerrain(
     polygons, centers, neighbors, heights, moisture, lake,
     seaLevel: def.seaLevel, seed: def.seed
   };
+}
+
+/** 내륙 바다(대양과 안 이어진 바다 덩어리) 처리:
+ *  - 지도 가장자리에 닿은 바다 = 진짜 대양
+ *  - 거기 연결 안 된 바다 덩어리 = 내륙 구멍 → 크면 호수, 작으면 메움 */
+function fillInlandSeas(
+  heights: number[],
+  neighbors: number[][],
+  seaLevel: number,
+  lake: boolean[],
+  centers: [number, number][],
+  outW: number,
+  outH: number
+): void {
+  const n = heights.length;
+  const isSea = (i: number) => heights[i] < seaLevel;
+  // 1) 가장자리 바다에서 BFS로 '대양'에 연결된 바다 표시
+  const ocean = new Array(n).fill(false);
+  const stack: number[] = [];
+  const edge = Math.min(outW, outH) * 0.03;
+  for (let i = 0; i < n; i++) {
+    if (!isSea(i)) continue;
+    const [x, y] = centers[i];
+    if (x < edge || x > outW - edge || y < edge || y > outH - edge) {
+      ocean[i] = true; stack.push(i);
+    }
+  }
+  while (stack.length) {
+    const c = stack.pop()!;
+    for (const nb of neighbors[c]) {
+      if (isSea(nb) && !ocean[nb]) { ocean[nb] = true; stack.push(nb); }
+    }
+  }
+  // 2) 대양에 연결 안 된 바다 덩어리 = 내륙 구멍. 군집별로 처리
+  const MIN_INLAND_LAKE = 6; // 이 이상이면 호수, 미만이면 메움
+  const visited = new Array(n).fill(false);
+  for (let s = 0; s < n; s++) {
+    if (!isSea(s) || ocean[s] || visited[s]) continue;
+    const cluster: number[] = [];
+    const st = [s]; visited[s] = true;
+    while (st.length) {
+      const c = st.pop()!;
+      cluster.push(c);
+      for (const nb of neighbors[c]) {
+        if (isSea(nb) && !ocean[nb] && !visited[nb]) { visited[nb] = true; st.push(nb); }
+      }
+    }
+    if (cluster.length >= MIN_INLAND_LAKE) {
+      // 호수로: 해수면 살짝 위로 올려 육지 판정 + 호수 표시
+      for (const c of cluster) { heights[c] = seaLevel + 0.005; lake[c] = true; }
+    } else {
+      // 메움: 주변 육지 평균 높이로
+      for (const c of cluster) {
+        let sum = 0, cnt = 0;
+        for (const nb of neighbors[c]) if (heights[nb] >= seaLevel) { sum += heights[nb]; cnt++; }
+        heights[c] = cnt ? sum / cnt : seaLevel + 0.01;
+      }
+    }
+  }
 }
 
 /** 웅덩이 채우기 (Priority-Flood): 국소 최저점을 물로 채워 호수로 만들고,

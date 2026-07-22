@@ -139,10 +139,20 @@
   // 올가미 완료: 드래그 궤적이 그대로 지역 경계가 됨
   function handleRegionLasso(points: { x: number; y: number }[]) {
     if (points.length < 3) { draftPoints = []; return; }
-    const name = prompt('지역 이름을 입력하세요', '새 지역') ?? '새 지역';
+    // 취소하거나 빈칸이어도 지역은 만들어짐 ('새 지역'). 이름은 나중에 칩에서 변경.
+    const input = prompt('지역 이름을 입력하세요 (비워도 됩니다)', '새 지역');
+    const name = (input ?? '').trim() || '새 지역';
     const rg: MapRegion = { id: `rg_${Date.now()}`, name, points, color: regionColor };
     saveRegions([...regions, rg]);
     draftPoints = [];
+  }
+  function renameRegion(id: string) {
+    const rg = regions.find((r) => r.id === id);
+    if (!rg) return;
+    const input = prompt('지역 이름 변경', rg.name);
+    if (input === null) return; // 변경 취소
+    const name = input.trim() || '새 지역';
+    saveRegions(regions.map((r) => (r.id === id ? { ...r, name } : r)));
   }
   function deleteRegion(id: string) {
     if (confirm('이 지역을 삭제할까요?')) saveRegions(regions.filter((r) => r.id !== id));
@@ -279,11 +289,11 @@
         {#if regions.length > 0}
           <div class="flex flex-wrap gap-1 max-w-[280px] justify-center pt-1 border-t border-line">
             {#each regions as rg}
-              <button on:click={() => deleteRegion(rg.id)}
-                class="px-2 py-0.5 rounded-full text-[10px] flex items-center gap-1 border border-line hover:border-rose-400"
-                title="클릭하면 삭제">
-                <span class="w-2 h-2 rounded-full" style="background:{rg.color}"></span>{rg.name} ✕
-              </button>
+              <span class="px-2 py-0.5 rounded-full text-[10px] flex items-center gap-1 border border-line">
+                <span class="w-2 h-2 rounded-full" style="background:{rg.color}"></span>
+                <button on:click={() => renameRegion(rg.id)} class="hover:text-primary" title="이름 변경">{rg.name}</button>
+                <button on:click={() => deleteRegion(rg.id)} class="hover:text-rose-400 ml-0.5" title="삭제">✕</button>
+              </span>
             {/each}
           </div>
         {/if}
