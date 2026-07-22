@@ -193,20 +193,30 @@
               <polygon
                 points={rg.points.map((p) => `${p.x},${p.y}`).join(' ')}
                 fill={rg.color} fill-opacity="0.32"
-                stroke={rg.color} stroke-width="0.35" stroke-dasharray="1.2 0.8" stroke-opacity="0.8"
+                stroke={rg.color} stroke-width="0.9" stroke-dasharray="2 1.2" stroke-opacity="0.95" stroke-linejoin="round"
                 vector-effect="non-scaling-stroke"
               />
             {/if}
           {/each}
           {#if draftPoints.length > 0}
-            <polygon
-              points={draftPoints.map((p) => `${p.x},${p.y}`).join(' ')}
-              fill={regionColor} fill-opacity="0.25"
-              stroke={regionColor} stroke-width="0.4" stroke-dasharray="1 0.6"
-              vector-effect="non-scaling-stroke"
-            />
-            {#each draftPoints as p}
-              <circle cx={p.x} cy={p.y} r="0.7" fill={regionColor} vector-effect="non-scaling-stroke" />
+            {#if draftPoints.length >= 2}
+              <!-- 점 잇는 선: 어두운 외곽 + 밝은 색선으로 대비 (닫힌 다각형 미리보기) -->
+              <polygon
+                points={draftPoints.map((p) => `${p.x},${p.y}`).join(' ')}
+                fill={regionColor} fill-opacity="0.3"
+                stroke="#3a2f1c" stroke-width="2.4" stroke-linejoin="round"
+                vector-effect="non-scaling-stroke"
+              />
+              <polygon
+                points={draftPoints.map((p) => `${p.x},${p.y}`).join(' ')}
+                fill="none"
+                stroke={regionColor} stroke-width="1.4" stroke-linejoin="round"
+                vector-effect="non-scaling-stroke"
+              />
+            {/if}
+            {#each draftPoints as p, i}
+              <circle cx={p.x} cy={p.y} r="1.1" fill="#fff" stroke="#3a2f1c" stroke-width="1.4" vector-effect="non-scaling-stroke" />
+              <circle cx={p.x} cy={p.y} r="0.55" fill={regionColor} vector-effect="non-scaling-stroke" />
             {/each}
           {/if}
         </svg>
