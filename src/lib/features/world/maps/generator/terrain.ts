@@ -133,23 +133,53 @@ export function buildWorldDef(opts: TerrainOptions): WorldDef {
     return lobes;
   });
 
-  /* 산맥(능선) */
-  type Ridge = { pts: [number, number][]; w: number };
-  const ridges: Ridge[] = [];
-  for (const [ccx, ccy] of contCenters) {
-    const nRidge = 1 + (rand() < 0.45 ? 1 : 0);
-    for (let r = 0; r < nRidge; r++) {
-      const offA = rand() * Math.PI * 2;
-      const offD = (0.1 + rand() * 0.35) * contR;
-      const p0: [number, number] = [ccx + Math.cos(offA) * offD, ccy + Math.sin(offA) * offD];
-      const a1 = rand() * Math.PI * 2;
-      const a2 = a1 + (rand() - 0.5) * 1.1;
-      const len = contR * (0.55 + rand() * 0.5);
-      const p1: [number, number] = [p0[0] + Math.cos(a1) * len * 0.5, p0[1] + Math.sin(a1) * len * 0.5];
-      const p2: [number, number] = [p1[0] + Math.cos(a2) * len * 0.5, p1[1] + Math.sin(a2) * len * 0.5];
-      ridges.push({ pts: [p0, p1, p2], w: contR * (0.14 + rand() * 0.08) });
-    }
+  /* ── 판구조론 산맥 (A안: 산맥만 판 경계로 결정) ──
+     세계를 판으로 조각내고, 각 판에 이동 벡터를 줌.
+     판끼리 만나는 경계에서 서로 밀면(수렴) → 산맥. */
+  const PLATE_COUNT = 8 + Math.floor(rand() * 5); // 8~12개 판
+  const plateSites: [number, number][] = [];
+  for (let i = 0; i < PLATE_COUNT; i++) {
+    plateSites.push([rand() * width, rand() * height]);
   }
+  // 각 판의 이동 벡터 (방향·세기)
+  const plateDrift: [number, number][] = plateSites.map(() => {
+    const a = rand() * Math.PI * 2;
+    const spd = 0.5 + rand() * 0.5;
+    return [Math.cos(a) * spd, Math.sin(a) * spd];
+  });
+  // 점(x,y)이 속한 판 인덱스 = 가장 가까운 plateSite
+  const plateOf = (x: number, y: number): number => {
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < plateSites.length; i++) {
+      const d = (x - plateSites[i][0]) ** 2 + (y - plateSites[i][1]) ** 2;
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  };
+
+  // 판 경계 산맥 강도: 점 주변에서 다른 판을 만나고, 두 판이 서로 미는지(수렴) 계산
+  const plateMountain = (x: number, y: number): number => {
+    const myPlate = plateOf(x, y);
+    const probe = Math.min(width, height) * 0.02; // 경계 탐지 반경
+    let maxConverge = 0;
+    // 8방향으로 살짝 이동해 다른 판을 만나는지
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      const nx = x + Math.cos(a) * probe;
+      const ny = y + Math.sin(a) * probe;
+      const other = plateOf(nx, ny);
+      if (other === myPlate) continue;
+      // 두 판의 상대 이동이 서로를 향하면(수렴) 양수
+      const rel: [number, number] = [
+        plateDrift[myPlate][0] - plateDrift[other][0],
+        plateDrift[myPlate][1] - plateDrift[other][1]
+      ];
+      // 경계 방향(내 판 → 다른 판)으로의 접근 성분
+      const converge = rel[0] * Math.cos(a) + rel[1] * Math.sin(a);
+      if (converge > maxConverge) maxConverge = converge;
+    }
+    return maxConverge; // 0~약1.5
+  };
 
   /* 섬 씨앗 */
   const isles: { x: number; y: number; r: number }[] = [];
@@ -198,13 +228,9 @@ export function buildWorldDef(opts: TerrainOptions): WorldDef {
       mask = Math.max(mask, Math.exp(-d * d * 1.6) * 0.8);
     }
 
-    let ridge = 0;
-    for (const rg of ridges) {
-      for (let sgi = 0; sgi < rg.pts.length - 1; sgi++) {
-        const d = distToSeg(x, y, rg.pts[sgi], rg.pts[sgi + 1]) / rg.w;
-        ridge = Math.max(ridge, Math.exp(-d * d * 2));
-      }
-    }
+    // 판구조론 산맥: 수렴 경계에서 솟음. 부드럽게 다듬어 산줄기로.
+    const conv = plateMountain(x, y);
+    const ridge = Math.max(0, Math.min(1, (conv - 0.15) * 1.3));
 
     const edgeD = Math.min(x, y, width - x, height - y) / margin;
     const e = Math.max(0, Math.min(1, edgeD));
@@ -271,11 +297,94 @@ export function sampleTerrain(
     moisture.push(def.moistureAt(points[i][0], points[i][1]));
   }
 
+  /* ── 수력 침식 (물이 흐르며 땅을 깎고 하류에 쌓음) ──
+     1) 높은 셀→낮은 셀 순으로 물 흐름(flux) 누적
+     2) 물이 많이 지나는 곳을 깎아 계곡 형성, 완만한 곳엔 약간 퇴적 */
+  erode(heights, neighbors, def.seaLevel);
+
+  /* ── 기후: 바람이 바다에서 습기를 싣고 오다 산맥을 넘으면 비를 뿌려 건조해짐(비그늘) ──
+     탁월풍 방향으로 셀을 훑으며 습기를 전달, 고도 오를 때 비로 소모 */
+  applyClimate(heights, moisture, centers, neighbors, def.seaLevel, outW);
+
   return {
     width: outW, height: outH,
     polygons, centers, neighbors, heights, moisture,
     seaLevel: def.seaLevel, seed: def.seed
   };
+}
+
+/** 기후: 탁월풍이 바다에서 습기를 싣고 오다 산을 넘으며 비를 뿌림 → 산 뒤(비그늘)는 건조 */
+function applyClimate(
+  heights: number[],
+  moisture: number[],
+  centers: [number, number][],
+  neighbors: number[][],
+  seaLevel: number,
+  outW: number
+): void {
+  const n = heights.length;
+  // 탁월풍: 서→동 (왼쪽에서 오른쪽). x 오름차순으로 훑으며 습기 전달
+  const order = Array.from({ length: n }, (_, i) => i).sort(
+    (a, b) => centers[a][0] - centers[b][0]
+  );
+  const humid = new Array(n).fill(0);
+  for (const i of order) {
+    if (heights[i] < seaLevel) { humid[i] = 1; continue; } // 바다 = 습기 공급원
+    // 서쪽(바람 불어오는 쪽) 이웃들의 습기 평균을 받음
+    let inflow = 0, cnt = 0;
+    for (const nb of neighbors[i]) {
+      if (centers[nb][0] < centers[i][0]) { inflow += humid[nb]; cnt++; }
+    }
+    let m = cnt > 0 ? inflow / cnt : 0.6;
+    // 고도가 높으면 비로 습기 소모 (비그늘)
+    const rel = Math.max(0, heights[i] - seaLevel);
+    m -= rel * 0.45;
+    // 증발산 회복: 내륙도 완전 건조는 안 되게 바닥을 받쳐줌
+    m = Math.max(m, 0.4 - rel * 0.5) * 0.85 + m * 0.15;
+    humid[i] = Math.max(0, Math.min(1, m));
+  }
+  // 기존 노이즈 습도와 혼합 (기후 70% + 노이즈 30%)로 자연스럽게
+  for (let i = 0; i < n; i++) {
+    if (heights[i] < seaLevel) continue;
+    moisture[i] = Math.max(0, Math.min(1, humid[i] * 0.7 + moisture[i] * 0.3));
+  }
+}
+
+/** 수력 침식: 셀 그래프 위에서 흐름 누적 → 침식/퇴적 */
+function erode(heights: number[], neighbors: number[][], seaLevel: number, iterations = 2): void {
+  const n = heights.length;
+  for (let iter = 0; iter < iterations; iter++) {
+    // 높은 순 정렬
+    const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => heights[b] - heights[a]);
+    const flux = new Array(n).fill(1); // 각 셀 강수 1
+
+    // 각 셀의 최저 이웃(내리막) 방향으로 물 전달
+    for (const i of order) {
+      if (heights[i] < seaLevel) continue; // 바다는 침식 안 함
+      let lowest = -1, lh = heights[i];
+      for (const nb of neighbors[i]) {
+        if (heights[nb] < lh) { lh = heights[nb]; lowest = nb; }
+      }
+      if (lowest === -1) continue; // 웅덩이
+      flux[lowest] += flux[i]; // 하류로 물 누적
+
+      // 침식량 = 흐름 × 경사. 물 많고 가파를수록 깊게 깎임
+      const slope = heights[i] - heights[lowest];
+      const erosion = Math.min(
+        heights[i] - seaLevel, // 바다 밑으론 안 깎음
+        Math.sqrt(flux[i]) * slope * 0.02
+      );
+      if (erosion > 0) heights[i] -= erosion * 0.5;
+    }
+  }
+
+  // 침식 후 국소 웅덩이 살짝 메우기 (강이 끊기지 않게)
+  for (let i = 0; i < n; i++) {
+    if (heights[i] < seaLevel) continue;
+    let minNb = Infinity;
+    for (const nb of neighbors[i]) minNb = Math.min(minNb, heights[nb]);
+    if (minNb > heights[i] && minNb < 1) heights[i] = Math.min(minNb, heights[i] + 0.002);
+  }
 }
 
 /* ═══ 기존 API 호환 ═══ */
