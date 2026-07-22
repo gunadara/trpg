@@ -123,6 +123,35 @@
     refresh++; // 다시 읽기
   }
 
+  /* ── 지역 색칠 ── */
+  type MapRegion = { id: string; name: string; points: { x: number; y: number }[]; color: string };
+  $: regions = ((selected?.attributes as any)?.regions ?? []) as MapRegion[];
+  let regionDrawing = false;
+  let draftPoints: { x: number; y: number }[] = [];
+  const REGION_COLORS = ['#e07a5f', '#81b29a', '#f2cc8f', '#8d99ae', '#b8869c', '#6a994e', '#c77dff', '#e9c46a'];
+  let regionColor = REGION_COLORS[0];
+
+  function saveRegions(next: MapRegion[]) {
+    if (!selected) return;
+    patchDoc(selected.id, { attributes: { ...(selected.attributes ?? {}), regions: next } });
+    refresh++;
+  }
+  function handleRegionPoint(x: number, y: number) {
+    draftPoints = [...draftPoints, { x, y }];
+  }
+  function undoRegionPoint() { draftPoints = draftPoints.slice(0, -1); }
+  function finishRegion() {
+    if (draftPoints.length < 3) { draftPoints = []; return; }
+    const name = prompt('지역 이름을 입력하세요', '새 지역') ?? '새 지역';
+    const rg: MapRegion = { id: `rg_${Date.now()}`, name, points: draftPoints, color: regionColor };
+    saveRegions([...regions, rg]);
+    draftPoints = [];
+  }
+  function cancelRegion() { draftPoints = []; }
+  function deleteRegion(id: string) {
+    if (confirm('이 지역을 삭제할까요?')) saveRegions(regions.filter((r) => r.id !== id));
+  }
+
   /* ── 핀 추가 (지도 탭 → 문서 연결 다이얼로그) ── */
   let pendingPin: { x: number; y: number } | null = null;
   let searchQuery = '';
@@ -210,6 +239,13 @@
 
     {#if selected}
       <button
+        on:click={() => { regionDrawing = !regionDrawing; if (regionDrawing) { editMode = false; selectRegionMode = false; } else draftPoints = []; }}
+        class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition
+               {regionDrawing ? 'bg-rose-600 text-white' : 'border border-line text-muted hover:border-rose-500 hover:text-rose-500'}"
+      >
+        {regionDrawing ? '✅ 그리기 끝' : '🎨 지역 색칠'}
+      </button>
+      <button
         on:click={() => (fullscreen = true)}
         class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border border-line text-muted hover:border-primary transition"
         title="지도 전체화면"
@@ -230,10 +266,50 @@
 
   <!-- 지도 영역 -->
   <div class="flex-1 p-3 md:p-4 relative min-h-0">
+    {#if selected && regionDrawing}
+      <div class="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2
+                  px-4 py-3 rounded-2xl bg-surface/95 border border-line backdrop-blur shadow-lg">
+        <p class="text-[11px] text-muted">지도를 탭해 지역 경계를 그리세요 (점 3개 이상)</p>
+        <div class="flex items-center gap-1.5">
+          {#each REGION_COLORS as c}
+            <button
+              on:click={() => (regionColor = c)}
+              class="w-6 h-6 rounded-full border-2 transition {regionColor === c ? 'border-ink scale-110' : 'border-transparent'}"
+              style="background:{c}"
+              aria-label="색 선택"
+            ></button>
+          {/each}
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button on:click={undoRegionPoint} disabled={draftPoints.length === 0}
+            class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-line text-muted hover:text-ink disabled:opacity-40">↩ 점 취소</button>
+          <button on:click={finishRegion} disabled={draftPoints.length < 3}
+            class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-primary text-white disabled:opacity-40">✅ 완료 ({draftPoints.length})</button>
+          <button on:click={cancelRegion}
+            class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-line text-muted hover:text-ink">✕ 취소</button>
+        </div>
+        {#if regions.length > 0}
+          <div class="flex flex-wrap gap-1 max-w-[280px] justify-center pt-1 border-t border-line">
+            {#each regions as rg}
+              <button on:click={() => deleteRegion(rg.id)}
+                class="px-2 py-0.5 rounded-full text-[10px] flex items-center gap-1 border border-line hover:border-rose-400"
+                title="클릭하면 삭제">
+                <span class="w-2 h-2 rounded-full" style="background:{rg.color}"></span>{rg.name} ✕
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
     {#if selected}
       <MapViewer
         image={(selected.attributes as any).mapImage}
         {pins}
+        {regions}
+        {regionDrawing}
+        {regionColor}
+        {draftPoints}
+        onRegionPoint={handleRegionPoint}
         editable={editMode}
         selectable={selectRegionMode}
         onSelectRect={handleSelectRect}

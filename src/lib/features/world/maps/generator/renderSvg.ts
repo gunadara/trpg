@@ -281,6 +281,16 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     if (d) deepPaths.push(`<path d="${d}" fill="${OCEAN_DEEP}"/>`);
   }
 
+  /* 호수: 침식 웅덩이가 물로 찬 곳 (강물 색 + 옅은 테두리) */
+  const lakePaths: string[] = [];
+  if (t.lake) {
+    for (let i = 0; i < t.polygons.length; i++) {
+      if (isSea(i) || !t.lake[i]) continue;
+      const d = polyToPath(t.polygons[i]);
+      if (d) lakePaths.push(`<path d="${d}" fill="${RIVER}" fill-opacity="0.55" stroke="${COAST_INK}" stroke-width="0.6" stroke-opacity="0.4"/>`);
+    }
+  }
+
   /* 강 */
   const riverLines = opts.riversOverride ?? buildRivers(t, opts.scale === 'region' ? 1.8 : 1);
   const riverPaths = riverLines
@@ -585,6 +595,7 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     rings +
     `<path d="${coastPath}" fill="${LAND_BASE}" fill-rule="evenodd"/>` +
     `<g clip-path="url(#land)" opacity="0.65">${bandPaths.join('')}</g>` +
+    `<g clip-path="url(#land)">${lakePaths.join('')}</g>` +
     `<g clip-path="url(#land)">${riverPaths}</g>` +
     `<g clip-path="url(#land)">${trees}</g>` +
     `<g clip-path="url(#land)">${desertDots}</g>` +

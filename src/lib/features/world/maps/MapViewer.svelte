@@ -21,6 +21,14 @@
   export let onAddPin: (x: number, y: number) => void = () => {};
   export let onPinClick: (pin: MapPin) => void = () => {};
 
+  // 지역 색칠: 다각형 점 찍기
+  export type MapRegion = { id: string; name: string; points: { x: number; y: number }[]; color: string };
+  export let regions: MapRegion[] = [];
+  export let regionDrawing = false;                     // true면 탭으로 다각형 점 추가
+  export let regionColor = '#e07a5f';                   // 현재 그리는 지역 색
+  export let onRegionPoint: (x: number, y: number) => void = () => {}; // 점 추가 콜백
+  export let draftPoints: { x: number; y: number }[] = []; // 그리는 중인 점들
+
   let zoom = 100; // % (컨테이너 가로폭 기준)
 
   // 화면 맞춤: 가로·세로가 모두 들어오는 배율 계산
@@ -98,6 +106,13 @@
   }
 
   function handleMapClick(e: MouseEvent) {
+    if (regionDrawing) {
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * 100;
+      const y = ((e.clientY - rect.top) / rect.height) * 100;
+      onRegionPoint(Math.round(x * 10) / 10, Math.round(y * 10) / 10);
+      return;
+    }
     if (!editable || selectable) return;
     const target = e.currentTarget as HTMLElement;
     const rect = target.getBoundingClientRect();
@@ -158,7 +173,7 @@
   >
     <!-- 이미지 + 핀 레이어 (이미지 크기에 맞춰 핀이 따라감) -->
     <div
-      class="relative inline-block m-auto {editable && !selectable ? 'cursor-crosshair' : ''} {selectable ? 'cursor-crosshair' : ''}"
+      class="relative inline-block m-auto {(editable && !selectable) || regionDrawing ? 'cursor-crosshair' : ''} {selectable ? 'cursor-crosshair' : ''}"
       style="width: {zoom}%; {selectable ? 'touch-action: none;' : ''}"
       bind:this={mapEl}
       on:click={handleMapClick}
@@ -169,6 +184,33 @@
       aria-label="세계관 지도"
     >
       <img src={image} alt="지도" class="w-full block select-none" draggable="false" on:load={handleImgLoad} />
+
+      <!-- 지역 색칠 오버레이 (% 좌표를 viewBox 0~100으로) -->
+      {#if regions.length > 0 || draftPoints.length > 0}
+        <svg class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+          {#each regions as rg (rg.id)}
+            {#if rg.points.length >= 3}
+              <polygon
+                points={rg.points.map((p) => `${p.x},${p.y}`).join(' ')}
+                fill={rg.color} fill-opacity="0.32"
+                stroke={rg.color} stroke-width="0.35" stroke-dasharray="1.2 0.8" stroke-opacity="0.8"
+                vector-effect="non-scaling-stroke"
+              />
+            {/if}
+          {/each}
+          {#if draftPoints.length > 0}
+            <polygon
+              points={draftPoints.map((p) => `${p.x},${p.y}`).join(' ')}
+              fill={regionColor} fill-opacity="0.25"
+              stroke={regionColor} stroke-width="0.4" stroke-dasharray="1 0.6"
+              vector-effect="non-scaling-stroke"
+            />
+            {#each draftPoints as p}
+              <circle cx={p.x} cy={p.y} r="0.7" fill={regionColor} vector-effect="non-scaling-stroke" />
+            {/each}
+          {/if}
+        </svg>
+      {/if}
 
       {#if selRect}
         <div

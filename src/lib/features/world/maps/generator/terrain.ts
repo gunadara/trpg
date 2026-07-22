@@ -37,6 +37,8 @@ export type Terrain = {
   neighbors: number[][];
   heights: number[];
   moisture: number[];
+  /** 셀별 호수 여부 (침식 웅덩이가 물로 찬 곳) */
+  lake: boolean[];
   seaLevel: number;
   seed: string;
 };
@@ -302,15 +304,62 @@ export function sampleTerrain(
      2) 물이 많이 지나는 곳을 깎아 계곡 형성, 완만한 곳엔 약간 퇴적 */
   erode(heights, neighbors, def.seaLevel);
 
+  // 침식이 판 웅덩이 → 물 채워 호수로. 넘치는 지점은 하류로 뚫어 강이 이어지게.
+  const lake = fillDepressions(heights, neighbors, def.seaLevel);
+
   /* ── 기후: 바람이 바다에서 습기를 싣고 오다 산맥을 넘으면 비를 뿌려 건조해짐(비그늘) ──
      탁월풍 방향으로 셀을 훑으며 습기를 전달, 고도 오를 때 비로 소모 */
   applyClimate(heights, moisture, centers, neighbors, def.seaLevel, outW);
 
   return {
     width: outW, height: outH,
-    polygons, centers, neighbors, heights, moisture,
+    polygons, centers, neighbors, heights, moisture, lake,
     seaLevel: def.seaLevel, seed: def.seed
   };
+}
+
+/** 웅덩이 채우기 (Priority-Flood): 국소 최저점을 물로 채워 호수로 만들고,
+ *  모든 육지 셀이 바다로 내려갈 경로를 갖게 해 강이 끊기지 않게 한다.
+ *  반환: 셀별 호수 여부 (원래 높이보다 물이 차오른 곳) */
+function fillDepressions(heights: number[], neighbors: number[][], seaLevel: number): boolean[] {
+  const n = heights.length;
+  const filled = heights.slice();
+  const lake = new Array(n).fill(false);
+  const EPS = 0.0008; // 물이 흐르도록 하는 최소 경사
+
+  // 우선순위 큐 대용: 낮은 셀부터 처리
+  const closed = new Array(n).fill(false);
+  // 바다 셀을 출발점으로 (해수면 = 배수 출구)
+  const pq: number[] = [];
+  for (let i = 0; i < n; i++) {
+    if (heights[i] < seaLevel) { filled[i] = heights[i]; closed[i] = true; pq.push(i); }
+  }
+  // 간단 정렬 기반 처리 (셀 수 수천이라 충분)
+  let guard = 0;
+  while (pq.length > 0 && guard++ < n * 4) {
+    // 가장 낮은 filled 값 셀 꺼내기
+    let mi = 0;
+    for (let k = 1; k < pq.length; k++) if (filled[pq[k]] < filled[pq[mi]]) mi = k;
+    const c = pq[mi];
+    pq.splice(mi, 1);
+
+    for (const nb of neighbors[c]) {
+      if (closed[nb]) continue;
+      closed[nb] = true;
+      // 이웃은 최소한 현재 셀 + EPS 높이 (더 낮으면 채워서 물 고임 = 호수)
+      const spill = filled[c] + EPS;
+      if (heights[nb] < spill) {
+        filled[nb] = spill;
+        if (heights[nb] >= seaLevel) lake[nb] = true; // 물이 차오른 육지 = 호수
+      } else {
+        filled[nb] = heights[nb];
+      }
+      pq.push(nb);
+    }
+  }
+  // 채운 높이 반영
+  for (let i = 0; i < n; i++) heights[i] = filled[i];
+  return lake;
 }
 
 /** 기후: 탁월풍이 바다에서 습기를 싣고 오다 산을 넘으며 비를 뿌림 → 산 뒤(비그늘)는 건조 */
@@ -376,14 +425,6 @@ function erode(heights: number[], neighbors: number[][], seaLevel: number, itera
       );
       if (erosion > 0) heights[i] -= erosion * 0.5;
     }
-  }
-
-  // 침식 후 국소 웅덩이 살짝 메우기 (강이 끊기지 않게)
-  for (let i = 0; i < n; i++) {
-    if (heights[i] < seaLevel) continue;
-    let minNb = Infinity;
-    for (const nb of neighbors[i]) minNb = Math.min(minNb, heights[nb]);
-    if (minNb > heights[i] && minNb < 1) heights[i] = Math.min(minNb, heights[i] + 0.002);
   }
 }
 
