@@ -136,18 +136,14 @@
     patchDoc(selected.id, { attributes: { ...(selected.attributes ?? {}), regions: next } });
     refresh++;
   }
-  function handleRegionPoint(x: number, y: number) {
-    draftPoints = [...draftPoints, { x, y }];
-  }
-  function undoRegionPoint() { draftPoints = draftPoints.slice(0, -1); }
-  function finishRegion() {
-    if (draftPoints.length < 3) { draftPoints = []; return; }
+  // 올가미 완료: 드래그 궤적이 그대로 지역 경계가 됨
+  function handleRegionLasso(points: { x: number; y: number }[]) {
+    if (points.length < 3) { draftPoints = []; return; }
     const name = prompt('지역 이름을 입력하세요', '새 지역') ?? '새 지역';
-    const rg: MapRegion = { id: `rg_${Date.now()}`, name, points: draftPoints, color: regionColor };
+    const rg: MapRegion = { id: `rg_${Date.now()}`, name, points, color: regionColor };
     saveRegions([...regions, rg]);
     draftPoints = [];
   }
-  function cancelRegion() { draftPoints = []; }
   function deleteRegion(id: string) {
     if (confirm('이 지역을 삭제할까요?')) saveRegions(regions.filter((r) => r.id !== id));
   }
@@ -269,7 +265,7 @@
     {#if selected && regionDrawing}
       <div class="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2
                   px-4 py-3 rounded-2xl bg-surface/95 border border-line backdrop-blur shadow-lg">
-        <p class="text-[11px] text-muted">지도를 탭해 지역 경계를 그리세요 (점 3개 이상)</p>
+        <p class="text-[11px] text-muted">지도 위를 <b>드래그</b>해서 지역을 그리세요 (손 떼면 완성)</p>
         <div class="flex items-center gap-1.5">
           {#each REGION_COLORS as c}
             <button
@@ -279,14 +275,6 @@
               aria-label="색 선택"
             ></button>
           {/each}
-        </div>
-        <div class="flex items-center gap-1.5">
-          <button on:click={undoRegionPoint} disabled={draftPoints.length === 0}
-            class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-line text-muted hover:text-ink disabled:opacity-40">↩ 점 취소</button>
-          <button on:click={finishRegion} disabled={draftPoints.length < 3}
-            class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-primary text-white disabled:opacity-40">✅ 완료 ({draftPoints.length})</button>
-          <button on:click={cancelRegion}
-            class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-line text-muted hover:text-ink">✕ 취소</button>
         </div>
         {#if regions.length > 0}
           <div class="flex flex-wrap gap-1 max-w-[280px] justify-center pt-1 border-t border-line">
@@ -309,7 +297,7 @@
         {regionDrawing}
         {regionColor}
         {draftPoints}
-        onRegionPoint={handleRegionPoint}
+        onRegionLasso={handleRegionLasso}
         editable={editMode}
         selectable={selectRegionMode}
         onSelectRect={handleSelectRect}

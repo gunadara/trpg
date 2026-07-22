@@ -24,10 +24,10 @@
   // 지역 색칠: 다각형 점 찍기
   export type MapRegion = { id: string; name: string; points: { x: number; y: number }[]; color: string };
   export let regions: MapRegion[] = [];
-  export let regionDrawing = false;                     // true면 탭으로 다각형 점 추가
+  export let regionDrawing = false;                     // true면 드래그로 자유롭게 경계 그리기(올가미)
   export let regionColor = '#e07a5f';                   // 현재 그리는 지역 색
-  export let onRegionPoint: (x: number, y: number) => void = () => {}; // 점 추가 콜백
-  export let draftPoints: { x: number; y: number }[] = []; // 그리는 중인 점들
+  export let onRegionLasso: (points: { x: number; y: number }[]) => void = () => {}; // 올가미 완료 콜백
+  export let draftPoints: { x: number; y: number }[] = []; // 그리는 중인 경로
 
   let zoom = 100; // % (컨테이너 가로폭 기준)
 
@@ -106,13 +106,7 @@
   }
 
   function handleMapClick(e: MouseEvent) {
-    if (regionDrawing) {
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-      const x = ((e.clientX - rect.left) / rect.width) * 100;
-      const y = ((e.clientY - rect.top) / rect.height) * 100;
-      onRegionPoint(Math.round(x * 10) / 10, Math.round(y * 10) / 10);
-      return;
-    }
+    if (regionDrawing) return; // 올가미는 드래그로 처리 (클릭 무시)
     if (!editable || selectable) return;
     const target = e.currentTarget as HTMLElement;
     const rect = target.getBoundingClientRect();
@@ -133,20 +127,47 @@
       y: Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100))
     };
   }
+  // 올가미 상태
+  let lassoPath: { x: number; y: number }[] = [];
+  let lassoActive = false;
+
   function selDown(e: PointerEvent) {
+    if (regionDrawing) {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      lassoActive = true;
+      lassoPath = [pctOf(e)];
+      draftPoints = lassoPath;
+      return;
+    }
     if (!selectable) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     selStart = selCur = pctOf(e);
   }
   function selMove(e: PointerEvent) {
+    if (regionDrawing && lassoActive) {
+      const p = pctOf(e);
+      const last = lassoPath[lassoPath.length - 1];
+      // 너무 촘촘하면 건너뛰기 (점 과잉 방지) — 0.6% 이상 이동 시만 기록
+      if (!last || Math.hypot(p.x - last.x, p.y - last.y) > 0.6) {
+        lassoPath = [...lassoPath, p];
+        draftPoints = lassoPath;
+      }
+      return;
+    }
     if (!selectable || !selStart) return;
     selCur = pctOf(e);
   }
   function selUp() {
+    if (regionDrawing && lassoActive) {
+      lassoActive = false;
+      if (lassoPath.length >= 3) onRegionLasso(lassoPath);
+      lassoPath = [];
+      return;
+    }
     if (!selectable || !selStart || !selCur) { selStart = selCur = null; return; }
     const r = selRect;
     selStart = selCur = null;
-    if (r && r.w > 3 && r.h > 3) onSelectRect(r); // 너무 작은 드래그는 무시
+    if (r && r.w > 3 && r.h > 3) onSelectRect(r);
   }
   $: selRect = selStart && selCur
     ? {
@@ -174,7 +195,7 @@
     <!-- 이미지 + 핀 레이어 (이미지 크기에 맞춰 핀이 따라감) -->
     <div
       class="relative inline-block m-auto {(editable && !selectable) || regionDrawing ? 'cursor-crosshair' : ''} {selectable ? 'cursor-crosshair' : ''}"
-      style="width: {zoom}%; {selectable ? 'touch-action: none;' : ''}"
+      style="width: {zoom}%; {selectable || regionDrawing ? 'touch-action: none;' : ''}"
       bind:this={mapEl}
       on:click={handleMapClick}
       on:pointerdown={selDown}
@@ -200,24 +221,20 @@
           {/each}
           {#if draftPoints.length > 0}
             {#if draftPoints.length >= 2}
-              <!-- 점 잇는 선: 어두운 외곽 + 밝은 색선으로 대비 (닫힌 다각형 미리보기) -->
+              <!-- 올가미 궤적: 어두운 외곽 + 밝은 색선 -->
               <polygon
                 points={draftPoints.map((p) => `${p.x},${p.y}`).join(' ')}
-                fill={regionColor} fill-opacity="0.3"
-                stroke="#3a2f1c" stroke-width="2.4" stroke-linejoin="round"
+                fill={regionColor} fill-opacity="0.28"
+                stroke="#3a2f1c" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"
                 vector-effect="non-scaling-stroke"
               />
               <polygon
                 points={draftPoints.map((p) => `${p.x},${p.y}`).join(' ')}
                 fill="none"
-                stroke={regionColor} stroke-width="1.4" stroke-linejoin="round"
+                stroke={regionColor} stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"
                 vector-effect="non-scaling-stroke"
               />
             {/if}
-            {#each draftPoints as p, i}
-              <circle cx={p.x} cy={p.y} r="1.1" fill="#fff" stroke="#3a2f1c" stroke-width="1.4" vector-effect="non-scaling-stroke" />
-              <circle cx={p.x} cy={p.y} r="0.55" fill={regionColor} vector-effect="non-scaling-stroke" />
-            {/each}
           {/if}
         </svg>
       {/if}
