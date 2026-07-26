@@ -1,7 +1,7 @@
 // 자체 지도 생성기 — 렌더 5단계: 지도 드레싱
 // 평지 초록톤 + 숲 + 프레임/나침반/축척바 + 양피지 질감 + 바다 장식
 import type { Terrain } from './terrain';
-import { extractCoastLoops, chaikin, loopsToPath } from './coast';
+import { extractCoastLoops, extractCellLoops, chaikin, loopsToPath } from './coast';
 import { buildRivers, smoothOpen } from './rivers';
 
 /* ── 양피지 팔레트 ── */
@@ -164,6 +164,8 @@ export type RenderOptions = {
   scale?: 'world' | 'region';
   /** 지정 시 강을 직접 계산하지 않고 이 폴리라인(캔버스 좌표)을 사용 — 세계-지역 정합용 */
   riversOverride?: [number, number][][];
+  /** 자동 지명 라벨 표시 (기본 false — 지명은 사용자가 직접 단다) */
+  autoLabels?: boolean;
 };
 
 /* ── 지도 느낌: 자동 지명 생성 (가짜 한글, 고증 무시) ── */
@@ -281,13 +283,18 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     if (d) deepPaths.push(`<path d="${d}" fill="${OCEAN_DEEP}"/>`);
   }
 
-  /* 호수: 침식 웅덩이가 물로 찬 곳 (강물 색 + 옅은 테두리) */
-  const lakePaths: string[] = [];
+  /* 호수: 인접 셀을 합쳐 하나의 매끄러운 물덩어리로 (블록 각짐 제거) */
+  let lakePaths = '';
   if (t.lake) {
-    for (let i = 0; i < t.polygons.length; i++) {
-      if (isSea(i) || !t.lake[i]) continue;
-      const d = polyToPath(t.polygons[i]);
-      if (d) lakePaths.push(`<path d="${d}" fill="${RIVER}" fill-opacity="0.55" stroke="${COAST_INK}" stroke-width="0.6" stroke-opacity="0.4"/>`);
+    const lakeLoops = extractCellLoops(t.polygons, (i) => !isSea(i) && t.lake[i])
+      .map((l) => chaikin(l, 2));
+    for (const loop of lakeLoops) {
+      const d = loopsToPath([loop]);
+      if (d) {
+        lakePaths +=
+          `<path d="${d}" fill="${RIVER}" fill-opacity="0.5"/>` +
+          `<path d="${d}" fill="none" stroke="${COAST_INK}" stroke-width="1" stroke-opacity="0.45" stroke-linejoin="round"/>`;
+      }
     }
   }
 
@@ -418,6 +425,7 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
 
   const labels: string[] = [];
 
+  if (opts.autoLabels) {
   // 육지 라벨: 각 큰 땅덩어리(외곽 루프)의 무게중심에 지역명
   const landLoops = loops.filter((lp) => {
     // 외곽만 (면적 큰 것) — 넓이 근사
@@ -469,6 +477,7 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     const nm = genName(srand(), srand(), pick(SEA_SUFFIX, srand()));
     labels.push(mapLabel(sp.x, sp.y, nm, { size: 17, angle: (srand() - 0.5) * 8, ink: '#5b6d78' }));
   });
+  } // end autoLabels
 
   /* ── 지도 느낌 (c) 방위선(rhumb line) + 바다 괴물 ── */
   // 나침반 위치는 아래에서 정해지므로 먼저 계산
@@ -493,12 +502,8 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     rhumb += `<line x1="${rc[0]}" y1="${rc[1]}" x2="${(rc[0] + Math.cos(a) * diag).toFixed(0)}" y2="${(rc[1] + Math.sin(a) * diag).toFixed(0)}" stroke="${COAST_INK}" stroke-width="0.5" stroke-opacity="0.12"/>`;
   }
 
-  // 바다 괴물: 라벨 안 붙은 바다 spot 하나에
-  let monster = '';
-  if (shuffledSea.length > 2) {
-    const m = shuffledSea[shuffledSea.length - 1];
-    monster = seaMonster(m.x, m.y, 16, COAST_INK);
-  }
+  // 바다 괴물: (자동 배치 제거 — 사용자가 표식으로 찍을 예정)
+
 
   /* 프레임: 이중선 + 모서리 사각 장식 */
   const f1 = 10, f2 = 18;
@@ -595,7 +600,7 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     rings +
     `<path d="${coastPath}" fill="${LAND_BASE}" fill-rule="evenodd"/>` +
     `<g clip-path="url(#land)" opacity="0.65">${bandPaths.join('')}</g>` +
-    `<g clip-path="url(#land)">${lakePaths.join('')}</g>` +
+    `<g clip-path="url(#land)">${lakePaths}</g>` +
     `<g clip-path="url(#land)">${riverPaths}</g>` +
     `<g clip-path="url(#land)">${trees}</g>` +
     `<g clip-path="url(#land)">${desertDots}</g>` +

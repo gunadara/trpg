@@ -9,6 +9,65 @@ const keyOf = (p: Pt) => `${Math.round(p[0] * 10)}|${Math.round(p[1] * 10)}`;
 
 /** 육지 실루엣(외곽 + 호수 구멍)을 닫힌 루프들로 추출 */
 export function extractCoastLoops(t: Terrain): Pt[][] {
+  return extractCellLoops(t.polygons, (i) => t.heights[i] >= t.seaLevel);
+}
+
+/** 임의 셀 집합(predicate=true인 셀)의 외곽 경계 루프 추출.
+ *  인접 셀이 합쳐져 하나의 매끄러운 덩어리 윤곽이 나옴 (호수 등에 사용). */
+export function extractCellLoops(
+  polygons: Pt[][],
+  include: (i: number) => boolean
+): Pt[][] {
+  const edges = new Map<string, { a: Pt; b: Pt; count: number }>();
+  for (let i = 0; i < polygons.length; i++) {
+    if (!include(i)) continue;
+    const poly = polygons[i];
+    if (poly.length < 3) continue;
+    const pts =
+      keyOf(poly[0]) === keyOf(poly[poly.length - 1]) ? poly.slice(0, -1) : poly;
+    for (let j = 0; j < pts.length; j++) {
+      const a = pts[j];
+      const b = pts[(j + 1) % pts.length];
+      const ka = keyOf(a), kb = keyOf(b);
+      if (ka === kb) continue;
+      const ek = ka < kb ? `${ka}~${kb}` : `${kb}~${ka}`;
+      const found = edges.get(ek);
+      if (found) found.count++;
+      else edges.set(ek, { a, b, count: 1 });
+    }
+  }
+  const boundary = [...edges.values()].filter((e) => e.count === 1);
+  const byPoint = new Map<string, { a: Pt; b: Pt; used: boolean }[]>();
+  const segs = boundary.map((e) => ({ a: e.a, b: e.b, used: false }));
+  for (const s of segs) {
+    for (const k of [keyOf(s.a), keyOf(s.b)]) {
+      const arr = byPoint.get(k) ?? [];
+      arr.push(s);
+      byPoint.set(k, arr);
+    }
+  }
+  const loops: Pt[][] = [];
+  for (const start of segs) {
+    if (start.used) continue;
+    start.used = true;
+    const loop: Pt[] = [start.a, start.b];
+    let curKey = keyOf(start.b);
+    const startKey = keyOf(start.a);
+    while (curKey !== startKey) {
+      const candidates = (byPoint.get(curKey) ?? []).filter((s) => !s.used);
+      if (candidates.length === 0) break;
+      const next = candidates[0];
+      next.used = true;
+      const nextPt = keyOf(next.a) === curKey ? next.b : next.a;
+      loop.push(nextPt);
+      curKey = keyOf(nextPt);
+    }
+    if (loop.length >= 4) loops.push(loop);
+  }
+  return loops;
+}
+
+function extractCoastLoopsOld(t: Terrain): Pt[][] {
   // 1) 육지 셀의 모든 변 수집 — 두 번 나오는 변(육지끼리 공유)은 내부, 한 번이면 경계
   const edges = new Map<string, { a: Pt; b: Pt; count: number }>();
 

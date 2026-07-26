@@ -31,7 +31,12 @@
   } | null = null;
 
   // 지역 뽑기 가능 = 생성된 세계 지도만 (업로드 지도·지역 지도는 불가)
-  $: canExtract = !!(selected && (selected.attributes as any)?.mapGen && (selected.attributes as any).mapGen.type !== 'region');
+  // 지역 뽑기는 '세계' 지도에서만 (나라·마을 지도는 대상 아님)
+  $: canExtract = !!(
+    selected &&
+    (selected.attributes as any)?.mapGen &&
+    ((selected.attributes as any).mapGen.type ?? 'world') === 'world'
+  );
 
   function handleSelectRect(rPct: { x: number; y: number; w: number; h: number }) {
     if (!selected) return;

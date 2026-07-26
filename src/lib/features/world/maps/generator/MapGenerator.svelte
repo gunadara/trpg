@@ -2,12 +2,13 @@
   // 자체 지도 생성기 — 3·4단계 패널
   import { createBlankDoc, patchDoc } from '$lib/stores/docStore';
   import { generateTerrain } from './terrain';
+  import { generateVillage, renderVillageSvg } from './village';
   import { renderTerrainSvg, svgToDataUrl, svgDataUrlToPng } from './renderSvg';
 
   export let onSaved: (docId: string) => void = () => {};
   export let onClose: () => void = () => {};
 
-  let mapType: 'world' | 'region' = 'world';
+  let mapType: 'world' | 'region' | 'village' = 'world';
   let worldName = '';
   let seed = String(Math.floor(Math.random() * 90000) + 10000);
   let cellCount = 2500;
@@ -15,6 +16,10 @@
   let continents = 1;
   let islandLevel = 0.3; // 섬 밀도 0~1
   let wide = false; // 넓은 세계 (1600×1120)
+  // 마을 전용
+  let vDensity = 0.55;   // 건물 밀도
+  let vRiver = true;     // 개천
+  let vWalled = false;   // 성벽
 
   let previewUrl = '';   // 항상 PNG (웹뷰 SVG 렌더 크래시 방지)
   let lastSeed = '';
@@ -24,21 +29,37 @@
   let genToken = 0; // 연타 시 마지막 요청만 반영
 
   async function generate() {
-    const size = wide
-      ? { width: 1600, height: 1120, cellCount: Math.max(cellCount, 4000) }
-      : { width: 1000, height: 700, cellCount };
-    const t = generateTerrain({
-      seed: seed.trim() || 'genesis',
-      seaLevel: mapType === 'region' ? Math.min(seaLevel, 0.38) : seaLevel,
-      continents: mapType === 'region' ? 1 : continents,
-      islands: islandLevel,
-      scale: mapType,
-      ...size
-    });
-    // (지방 지도는 대륙 1개 고정)
     const token = ++genToken;
     rendering = true;
-    const svgUrl = svgToDataUrl(renderTerrainSvg(t, { title: worldName, scale: mapType }));
+    let svgUrl: string;
+
+    if (mapType === 'village') {
+      const v = generateVillage({
+        seed: seed.trim() || 'genesis',
+        density: vDensity,
+        river: vRiver,
+        walled: vWalled,
+        width: 1200,
+        height: 850
+      });
+      svgUrl = svgToDataUrl(renderVillageSvg(v, { title: worldName }));
+      lastSeed = v.seed;
+    } else {
+      const size = wide
+        ? { width: 1600, height: 1120, cellCount: Math.max(cellCount, 4000) }
+        : { width: 1000, height: 700, cellCount };
+      const t = generateTerrain({
+        seed: seed.trim() || 'genesis',
+        seaLevel: mapType === 'region' ? Math.min(seaLevel, 0.38) : seaLevel,
+        continents: mapType === 'region' ? 1 : continents,
+        islands: islandLevel,
+        scale: mapType,
+        ...size
+      });
+      svgUrl = svgToDataUrl(renderTerrainSvg(t, { title: worldName, scale: mapType }));
+      lastSeed = t.seed;
+    }
+
     try {
       const png = await svgDataUrlToPng(svgUrl, 1.5); // 한 번만 래스터화
       if (token !== genToken) return; // 더 새 요청이 있으면 버림
@@ -49,7 +70,6 @@
     } finally {
       if (token === genToken) rendering = false;
     }
-    lastSeed = t.seed;
   }
 
   function reroll() {
@@ -62,11 +82,14 @@
     saving = true;
     const doc = createBlankDoc('locations');
     patchDoc(doc.id, {
-      title: worldName.trim() || `생성 지도 #${lastSeed}`,
+      title: worldName.trim() || (mapType === 'village' ? `마을 #${lastSeed}` : `생성 지도 #${lastSeed}`),
       attributes: {
         mapImage: previewUrl,
         pins: [],
-        mapGen: { seed: lastSeed, cellCount, seaLevel, continents, islands: islandLevel, wide, title: worldName, type: mapType, stage: 8 }
+        mapGen:
+          mapType === 'village'
+            ? { seed: lastSeed, type: 'village', density: vDensity, river: vRiver, walled: vWalled, title: worldName, stage: 10 }
+            : { seed: lastSeed, cellCount, seaLevel, continents, islands: islandLevel, wide, title: worldName, type: mapType, stage: 10 }
       }
     });
     saving = false;
@@ -115,13 +138,17 @@
       <button
         on:click={() => { mapType = 'region'; generate(); }}
         class="flex-1 py-1.5 rounded-lg text-xs font-bold border transition {mapType === 'region' ? 'border-primary text-primary' : 'border-line text-muted'}"
-      >🗺️ 나라·지방</button>
+      >🗺️ 나라</button>
+      <button
+        on:click={() => { mapType = 'village'; generate(); }}
+        class="flex-1 py-1.5 rounded-lg text-xs font-bold border transition {mapType === 'village' ? 'border-primary text-primary' : 'border-line text-muted'}"
+      >🏘️ 마을</button>
     </div>
 
     <input
       type="text"
       bind:value={worldName}
-      placeholder="세계 이름 (지도 제목으로 들어가요, 비워도 됨)"
+      placeholder={mapType === 'village' ? '마을 이름 (비워도 됨)' : '세계 이름 (지도 제목으로 들어가요, 비워도 됨)'}
       class="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-xs text-ink outline-none focus:border-primary"
       on:change={generate}
     />
@@ -138,31 +165,49 @@
       <button on:click={reroll} class="px-3 py-2 rounded-lg bg-primary text-white text-xs font-bold hover:opacity-90 transition shrink-0">{rendering ? "…" : "🎲 새로"}</button>
     </div>
 
-    <div class="flex items-center gap-3">
-      <label class="flex-1 block" class:opacity-40={mapType === 'region'}>
-        <span class="text-[11px] text-muted">대륙 수 — {mapType === 'region' ? '1 (고정)' : continents}</span>
-        <input type="range" min="1" max="4" step="1" bind:value={continents} on:change={generate} class="w-full" />
+    {#if mapType === 'village'}
+      <!-- 마을 전용 조절 -->
+      <label class="block">
+        <span class="text-[11px] text-muted">마을 크기 — {vDensity < 0.35 ? '작은 마을' : vDensity < 0.7 ? '보통' : '큰 마을'}</span>
+        <input type="range" min="0.1" max="1" step="0.05" bind:value={vDensity} on:change={generate} class="w-full" />
       </label>
-      <label class="flex items-center gap-1.5 text-[11px] text-muted shrink-0 pt-3">
-        <input type="checkbox" bind:checked={wide} on:change={generate} />
-        넓은 세계
+      <div class="flex items-center gap-4">
+        <label class="flex items-center gap-1.5 text-[11px] text-muted">
+          <input type="checkbox" bind:checked={vRiver} on:change={generate} />
+          개천 지나감
+        </label>
+        <label class="flex items-center gap-1.5 text-[11px] text-muted">
+          <input type="checkbox" bind:checked={vWalled} on:change={generate} />
+          성벽 두르기
+        </label>
+      </div>
+    {:else}
+      <div class="flex items-center gap-3">
+        <label class="flex-1 block" class:opacity-40={mapType === 'region'}>
+          <span class="text-[11px] text-muted">대륙 수 — {mapType === 'region' ? '1 (고정)' : continents}</span>
+          <input type="range" min="1" max="4" step="1" bind:value={continents} on:change={generate} class="w-full" />
+        </label>
+        <label class="flex items-center gap-1.5 text-[11px] text-muted shrink-0 pt-3">
+          <input type="checkbox" bind:checked={wide} on:change={generate} />
+          넓은 세계
+        </label>
+      </div>
+
+      <label class="block">
+        <span class="text-[11px] text-muted">섬 — {islandLevel === 0 ? '없음' : islandLevel < 0.4 ? '조금' : islandLevel < 0.75 ? '보통' : '많음'}</span>
+        <input type="range" min="0" max="1" step="0.05" bind:value={islandLevel} on:change={generate} class="w-full" />
       </label>
-    </div>
 
-    <label class="block">
-      <span class="text-[11px] text-muted">섬 — {islandLevel === 0 ? '없음' : islandLevel < 0.4 ? '조금' : islandLevel < 0.75 ? '보통' : '많음'}</span>
-      <input type="range" min="0" max="1" step="0.05" bind:value={islandLevel} on:change={generate} class="w-full" />
-    </label>
+      <label class="block">
+        <span class="text-[11px] text-muted">바다 비율 — {Math.round(seaLevel * 100)}</span>
+        <input type="range" min="0.25" max="0.6" step="0.01" bind:value={seaLevel} on:change={generate} class="w-full" />
+      </label>
 
-    <label class="block">
-      <span class="text-[11px] text-muted">바다 비율 — {Math.round(seaLevel * 100)}</span>
-      <input type="range" min="0.25" max="0.6" step="0.01" bind:value={seaLevel} on:change={generate} class="w-full" />
-    </label>
-
-    <label class="block">
-      <span class="text-[11px] text-muted">디테일(셀 수) — {cellCount}</span>
-      <input type="range" min="800" max="6000" step="100" bind:value={cellCount} on:change={generate} class="w-full" />
-    </label>
+      <label class="block">
+        <span class="text-[11px] text-muted">디테일(셀 수) — {cellCount}</span>
+        <input type="range" min="800" max="6000" step="100" bind:value={cellCount} on:change={generate} class="w-full" />
+      </label>
+    {/if}
   </div>
 
   <div class="flex gap-2">
