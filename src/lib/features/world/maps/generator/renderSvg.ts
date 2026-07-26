@@ -304,7 +304,7 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     .map((r) => {
       const pts = smoothOpen(r, 2);
       // 3구간으로 나눠 굵기 0.9 → 1.6 → 2.4 (수원 가늘게, 하구 굵게)
-      const widths = [0.9, 1.6, 2.4];
+      const widths = [1.3, 1.9, 2.6];
       const segLen = Math.ceil(pts.length / 3);
       let out = '';
       for (let seg = 0; seg < 3; seg++) {
@@ -324,7 +324,7 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
   const forestCells = t.heights
     .map((_, i) => i)
     .filter((i) => {
-      if (isSea(i)) return false;
+      if (isSea(i) || (t.lake && t.lake[i])) return false;
       const r = rel(i);
       if (r < 0.06 || r > 0.42) return false;
       if (biome(i) === 'desert') return false;
@@ -348,7 +348,7 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
   /* 산 */
   const mtnCells = t.heights
     .map((_, i) => i)
-    .filter((i) => !isSea(i) && rel(i) >= 0.48 && jitter(i, 7) < 0.75)
+    .filter((i) => !isSea(i) && !(t.lake && t.lake[i]) && rel(i) >= 0.48 && jitter(i, 7) < 0.75)
     .sort((a, b) => t.centers[a][1] - t.centers[b][1]);
   const glyphs = mtnCells
     .map((i) => {
@@ -363,7 +363,7 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
   /* 사막 점무늬 */
   const desertDots = t.heights
     .map((_, i) => i)
-    .filter((i) => !isSea(i) && biome(i) === 'desert' && jitter(i, 21) < 0.3)
+    .filter((i) => !isSea(i) && !(t.lake && t.lake[i]) && biome(i) === 'desert' && jitter(i, 21) < 0.3)
     .map((i) => {
       const [cx, cy] = t.centers[i];
       let dots = '';
@@ -601,10 +601,11 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     `<path d="${coastPath}" fill="${LAND_BASE}" fill-rule="evenodd"/>` +
     `<g clip-path="url(#land)" opacity="0.65">${bandPaths.join('')}</g>` +
     `<g clip-path="url(#land)">${lakePaths}</g>` +
-    `<g clip-path="url(#land)">${riverPaths}</g>` +
     `<g clip-path="url(#land)">${trees}</g>` +
     `<g clip-path="url(#land)">${desertDots}</g>` +
     `<g clip-path="url(#land)">${glyphs}</g>` +
+    // 강은 산·숲 위에 그려야 산 글리프에 가려 끊어져 보이지 않는다
+    `<g clip-path="url(#land)">${riverPaths}</g>` +
     // 이중 해안선: 바깥 옅은 세피아 굵은 선 → 안쪽 진한 선 (펜으로 두 번 그은 고지도 느낌)
     `<path d="${coastPath}" fill="none" stroke="${COAST_OUTER}" stroke-width="3.6" stroke-opacity="0.5" stroke-linejoin="round"/>` +
     `<path d="${coastPath}" fill="none" stroke="${COAST_INK}" stroke-width="1.6" stroke-linejoin="round"/>` +

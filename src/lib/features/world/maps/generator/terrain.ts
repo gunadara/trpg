@@ -109,16 +109,18 @@ export function buildWorldDef(opts: TerrainOptions): WorldDef {
     }
     contCenters.push(best);
   }
-  // 대륙 반경: 기본값을 쓰되, '가장 가까운 이웃 대륙까지 거리'로 상한을 걸어
-  // 로브까지 포함해도 옆 대륙과 겹치지 않게 한다.
+  // 대륙 반경: 기본값을 쓰되, 이웃 대륙까지 거리로 상한을 건다.
+  // [B안] 로브(돌출부)끼리는 겹쳐서 반도·지협으로 이어져도 OK.
+  //       다만 '본체'는 반드시 떨어져 있어야 전부 한 덩어리가 되지 않는다.
   const R_BY_COUNT = [0.62, 0.62, 0.58, 0.50, 0.46, 0.42]; // index = 대륙 수
-  const baseR = (region ? 0.82 : R_BY_COUNT[Math.min(nCont, 5)]) * Math.min(width, height);
+  // 넓은 세계(가로가 긴 캔버스)면 대륙 비율 자체를 키운다 (넓은 화면 = 대륙도 크게)
+  const wideBoost = width >= 1400 ? 1.18 : 1;
+  const baseR = (region ? 0.82 : R_BY_COUNT[Math.min(nCont, 5)] * wideBoost) * Math.min(width, height);
 
-  // 로브가 중심에서 뻗는 최대 도달거리 배수 (아래 lobeReach/lobeSize와 맞춤)
-  const lobeReach = nCont === 1 ? 0.85 : 0.2;
-  const lobeSize = nCont === 1 ? 0.6 : 0.22;
-  const lobeMax = nCont === 1 ? 6 : 7;
-  const REACH = (0.4 + lobeReach) + (0.35 + lobeSize); // 로브 중심거리 + 로브반경
+  // 로브: 여러 대륙일 때도 충분히 크게 (작으면 본체에 파묻혀 전부 동그란 원이 됨)
+  const lobeReach = nCont === 1 ? 0.85 : 0.62;
+  const lobeSize = nCont === 1 ? 0.6 : 0.58;
+  const lobeMax = nCont === 1 ? 6 : 8;
 
   const contRadii: number[] = contCenters.map(([x, y], i) => {
     let nearest = Infinity;
@@ -126,8 +128,9 @@ export function buildWorldDef(opts: TerrainOptions): WorldDef {
       if (i === j) continue;
       nearest = Math.min(nearest, Math.hypot(x - contCenters[j][0], y - contCenters[j][1]));
     }
-    if (!isFinite(nearest)) return baseR;             // 대륙 1개면 제한 없음
-    const cap = (nearest / (REACH * 2)) * 0.94;       // 두 대륙 도달범위가 안 닿게
+    if (!isFinite(nearest)) return baseR;        // 대륙 1개면 제한 없음
+    // 본체 반경 합이 중심거리보다 작게 → 본체는 확실히 분리 (로브는 닿을 수 있음)
+    const cap = nearest * 0.35;
     return Math.min(baseR, cap);
   });
 
@@ -374,7 +377,7 @@ export function sampleTerrain(
 
   /* ── 기후: 바람이 바다에서 습기를 싣고 오다 산맥을 넘으면 비를 뿌려 건조해짐(비그늘) ──
      탁월풍 방향으로 셀을 훑으며 습기를 전달, 고도 오를 때 비로 소모 */
-  applyClimate(heights, moisture, centers, neighbors, def.seaLevel, outW);
+  applyClimate(heights, moisture, centers, neighbors, def.seaLevel, outW, lake);
 
   return {
     width: outW, height: outH,
@@ -516,7 +519,8 @@ function applyClimate(
   centers: [number, number][],
   neighbors: number[][],
   seaLevel: number,
-  outW: number
+  outW: number,
+  lake?: boolean[]
 ): void {
   const n = heights.length;
   // 탁월풍: 서→동 (왼쪽에서 오른쪽). x 오름차순으로 훑으며 습기 전달
@@ -525,7 +529,8 @@ function applyClimate(
   );
   const humid = new Array(n).fill(0);
   for (const i of order) {
-    if (heights[i] < seaLevel) { humid[i] = 1; continue; } // 바다 = 습기 공급원
+    // 바다·호수 = 습기 공급원 (호수도 증발해 주변을 적신다)
+    if (heights[i] < seaLevel || lake?.[i]) { humid[i] = 1; continue; }
     // 서쪽(바람 불어오는 쪽) 이웃들의 습기 평균을 받음
     let inflow = 0, cnt = 0;
     for (const nb of neighbors[i]) {
@@ -543,6 +548,26 @@ function applyClimate(
   for (let i = 0; i < n; i++) {
     if (heights[i] < seaLevel) continue;
     moisture[i] = Math.max(0, Math.min(1, humid[i] * 0.7 + moisture[i] * 0.3));
+  }
+
+  // 호수 주변은 물기가 돌아 사막이 되지 않게 (호수 자체 + 2칸 이웃까지 습도 상승)
+  if (lake) {
+    const boost = new Array(n).fill(0);
+    for (let i = 0; i < n; i++) if (lake[i]) boost[i] = 1;
+    for (let ring = 0; ring < 2; ring++) {
+      const next = boost.slice();
+      for (let i = 0; i < n; i++) {
+        if (boost[i] > 0) continue;
+        for (const nb of neighbors[i]) {
+          if (boost[nb] > 0) { next[i] = Math.max(next[i], boost[nb] * 0.55); break; }
+        }
+      }
+      for (let i = 0; i < n; i++) boost[i] = next[i];
+    }
+    for (let i = 0; i < n; i++) {
+      if (heights[i] < seaLevel || boost[i] <= 0) continue;
+      moisture[i] = Math.max(moisture[i], 0.5 + boost[i] * 0.35);
+    }
   }
 }
 
