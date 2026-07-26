@@ -1,6 +1,8 @@
 // 마을 지도 생성기 — 길을 먼저 깔고, 길가에 건물을 배치한다.
 // 지형 생성기(terrain.ts)와 독립. 양피지 렌더 스타일은 공유 느낌으로 자체 정의.
 
+export type SettlementKind = 'hamlet' | 'village' | 'town' | 'citadel';
+
 export type VillageOptions = {
   seed: string;
   width?: number;      // 캔버스 (기본 1200×850)
@@ -8,12 +10,21 @@ export type VillageOptions = {
   density?: number;    // 건물 밀도 0~1 (기본 0.5)
   river?: boolean;     // 마을을 지나는 개천
   walled?: boolean;    // 성벽 두르기
+  kind?: SettlementKind; // 취락 유형 (기본 village)
 };
+
+/** 취락 유형별 구조 프리셋 */
+const SETTLEMENT = {
+  hamlet:  { roads: 1, branchMax: 1, slotMain: 10, slotBranch: 5,  plaza: false, fields: 9, wall: false, label: '촌락' },
+  village: { roads: 1, branchMax: 3, slotMain: 20, slotBranch: 10, plaza: true,  fields: 7, wall: false, label: '마을' },
+  town:    { roads: 2, branchMax: 5, slotMain: 26, slotBranch: 14, plaza: true,  fields: 4, wall: false, label: '읍' },
+  citadel: { roads: 2, branchMax: 6, slotMain: 30, slotBranch: 16, plaza: true,  fields: 2, wall: true,  label: '성채도시' }
+} as const;
 
 export type Road = { pts: [number, number][]; w: number; kind: 'main' | 'branch' | 'path' };
 export type Building = {
   x: number; y: number; w: number; h: number; angle: number;
-  kind: 'house' | 'inn' | 'shop' | 'temple' | 'barn';
+  kind: 'house' | 'inn' | 'shop' | 'temple' | 'barn' | 'smithy' | 'mill' | 'stable' | 'tower';
 };
 export type Field = { x: number; y: number; w: number; h: number; angle: number };
 
@@ -27,6 +38,8 @@ export type Village = {
   well: { x: number; y: number } | null;
   river: [number, number][] | null;
   wall: [number, number][] | null;
+  bridges: { x: number; y: number; angle: number; w: number }[];
+  kind: SettlementKind;
   seed: string;
 };
 
@@ -62,6 +75,8 @@ export function generateVillage(opts: VillageOptions): Village {
   const width = opts.width ?? 1200;
   const height = opts.height ?? 850;
   const density = Math.max(0, Math.min(1, opts.density ?? 0.5));
+  const kind: SettlementKind = opts.kind ?? 'village';
+  const P = SETTLEMENT[kind];
   const rand = mulberry32(hashSeed(opts.seed));
 
   const cx = width * (0.45 + rand() * 0.1);
@@ -82,8 +97,25 @@ export function generateVillage(opts: VillageOptions): Village {
   }
   const roads: Road[] = [{ pts: mainPts, w: 13, kind: 'main' }];
 
+  // 큰 취락은 간선도로가 하나 더 (교차로 형성)
+  if (P.roads >= 2) {
+    const a2 = mainAngle + Math.PI / 2 + (rand() - 0.5) * 0.5;
+    const pts2: [number, number][] = [];
+    const len2 = height * 0.88;
+    for (let k = 0; k <= 5; k++) {
+      const tt = k / 5;
+      const along = (tt - 0.5) * len2;
+      const sway = Math.sin(tt * Math.PI * 1.2) * width * 0.05;
+      pts2.push([
+        cx + Math.cos(a2) * along - Math.sin(a2) * sway,
+        cy + Math.sin(a2) * along + Math.cos(a2) * sway
+      ]);
+    }
+    roads.push({ pts: pts2, w: 11, kind: 'main' });
+  }
+
   /* 2) 갈래길: 간선에서 위/아래로 뻗음 */
-  const nBranch = 2 + Math.floor(rand() * 3);
+  const nBranch = Math.max(1, Math.round(P.branchMax * (0.5 + rand() * 0.5)));
   const branchTs: number[] = [];
   for (let b = 0; b < nBranch; b++) {
     const t = 0.2 + (b / Math.max(1, nBranch - 1)) * 0.6 + (rand() - 0.5) * 0.08;
@@ -107,8 +139,10 @@ export function generateVillage(opts: VillageOptions): Village {
   /* 3) 광장 + 우물: 간선 중앙 근처 */
   const plazaT = 0.42 + rand() * 0.16;
   const { p: pp } = onPath(mainPts, plazaT);
-  const plaza = { x: pp[0], y: pp[1] + (rand() < 0.5 ? -1 : 1) * 46, r: 34 + rand() * 14 };
-  const well = { x: plaza.x + (rand() - 0.5) * 12, y: plaza.y + (rand() - 0.5) * 12 };
+  const plaza = P.plaza
+    ? { x: pp[0], y: pp[1] + (rand() < 0.5 ? -1 : 1) * 46, r: (kind === 'hamlet' ? 22 : 34) + rand() * 14 }
+    : null;
+  const well = { x: (plaza?.x ?? pp[0]) + (rand() - 0.5) * 12, y: (plaza?.y ?? pp[1] + 40) + (rand() - 0.5) * 12 };
 
   /* 4) 개천 (옵션): 마을 한쪽을 비스듬히 지남 */
   let river: [number, number][] | null = null;
@@ -131,7 +165,7 @@ export function generateVillage(opts: VillageOptions): Village {
   const canPlace = (x: number, y: number, r: number) => {
     if (x < 40 || x > width - 40 || y < 40 || y > height - 40) return false;
     // 광장과 겹치지 않게
-    if (Math.hypot(x - plaza.x, y - plaza.y) < plaza.r + r + 6) return false;
+    if (plaza && Math.hypot(x - plaza.x, y - plaza.y) < plaza.r + r + 6) return false;
     // 개천과 겹치지 않게
     if (river) {
       // 폴리라인의 '선분'까지 거리로 검사 (점만 보면 점 사이 구간이 뚫림)
@@ -149,17 +183,38 @@ export function generateVillage(opts: VillageOptions): Village {
     return true;
   };
 
-  const kindOf = (i: number, roadKind: Road['kind']): Building['kind'] => {
+  // 특수 건물은 취락당 개수를 제한한다 (대장간 2, 방앗간 1 …)
+  const quota: Record<string, number> =
+    kind === 'hamlet'
+      ? { inn: 0, shop: 0, temple: 0, smithy: 1, mill: 1, stable: 0, tower: 0 }
+      : kind === 'village'
+      ? { inn: 1, shop: 2, temple: 1, smithy: 1, mill: 1, stable: 1, tower: 0 }
+      : kind === 'town'
+      ? { inn: 2, shop: 4, temple: 1, smithy: 2, mill: 1, stable: 2, tower: 0 }
+      : { inn: 3, shop: 5, temple: 2, smithy: 2, mill: 1, stable: 2, tower: 3 };
+  const used: Record<string, number> = {};
+  const take = (k: string) => {
+    if ((used[k] ?? 0) >= (quota[k] ?? 0)) return false;
+    used[k] = (used[k] ?? 0) + 1;
+    return true;
+  };
+
+  const kindOf = (roadKind: Road['kind']): Building['kind'] => {
     const r = rand();
-    if (roadKind === 'main' && r < 0.08) return 'inn';
-    if (roadKind === 'main' && r < 0.16) return 'shop';
-    if (r < 0.06) return 'temple';
-    if (r < 0.16) return 'barn';
+    if (roadKind === 'main') {
+      if (r < 0.10 && take('inn')) return 'inn';
+      if (r < 0.24 && take('shop')) return 'shop';
+      if (r < 0.30 && take('smithy')) return 'smithy';
+      if (r < 0.35 && take('stable')) return 'stable';
+    }
+    if (r < 0.06 && take('temple')) return 'temple';
+    if (r < 0.10 && take('tower')) return 'tower';
+    if (r < 0.18) return 'barn';
     return 'house';
   };
 
   for (const road of roads) {
-    const slots = Math.round((road.kind === 'main' ? 20 : 10) * (0.5 + density));
+    const slots = Math.round((road.kind === 'main' ? P.slotMain : P.slotBranch) * (0.5 + density));
     for (let s = 0; s < slots; s++) {
       const t = 0.05 + (s / slots) * 0.9 + (rand() - 0.5) * 0.02;
       const { p, dir } = onPath(road.pts, t);
@@ -169,14 +224,28 @@ export function generateVillage(opts: VillageOptions): Village {
         const off = road.w * 0.5 + 16 + rand() * 14;
         const bx = p[0] + nx * off;
         const by = p[1] + ny * off;
-        const kind = kindOf(s, road.kind);
-        const bw = kind === 'barn' ? 26 + rand() * 12 : kind === 'temple' ? 30 + rand() * 8 : 16 + rand() * 12;
-        const bh = kind === 'barn' ? 18 + rand() * 8 : kind === 'temple' ? 24 + rand() * 6 : 14 + rand() * 9;
+        const bkind = kindOf(road.kind);
+        const bw =
+          bkind === 'barn' ? 26 + rand() * 12
+          : bkind === 'temple' ? 30 + rand() * 8
+          : bkind === 'smithy' ? 22 + rand() * 8
+          : bkind === 'stable' ? 30 + rand() * 10
+          : bkind === 'mill' ? 24 + rand() * 6
+          : bkind === 'tower' ? 18 + rand() * 4
+          : 16 + rand() * 12;
+        const bh =
+          bkind === 'barn' ? 18 + rand() * 8
+          : bkind === 'temple' ? 24 + rand() * 6
+          : bkind === 'smithy' ? 18 + rand() * 6
+          : bkind === 'stable' ? 16 + rand() * 6
+          : bkind === 'mill' ? 24 + rand() * 6
+          : bkind === 'tower' ? 18 + rand() * 4
+          : 14 + rand() * 9;
         const rr = Math.max(bw, bh) * 0.6;
         if (!canPlace(bx, by, rr)) continue;
         // 길과 나란히 (길 방향 각도)
         const angle = (Math.atan2(dir[1], dir[0]) * 180) / Math.PI + (rand() - 0.5) * 10;
-        buildings.push({ x: bx, y: by, w: bw, h: bh, angle, kind });
+        buildings.push({ x: bx, y: by, w: bw, h: bh, angle, kind: bkind });
         placed.push({ x: bx, y: by, r: rr });
       }
     }
@@ -184,7 +253,7 @@ export function generateVillage(opts: VillageOptions): Village {
 
   /* 6) 밭: 마을 외곽 빈 곳에 */
   const fields: Field[] = [];
-  const nField = 5 + Math.floor(rand() * 6);
+  const nField = Math.max(0, Math.round(P.fields * (0.6 + rand() * 0.8)));
   for (let f = 0; f < nField; f++) {
     for (let attempt = 0; attempt < 12; attempt++) {
       const a = rand() * Math.PI * 2;
@@ -199,9 +268,34 @@ export function generateVillage(opts: VillageOptions): Village {
     }
   }
 
+  /* 6.5) 다리: 도로가 개천을 건너는 지점 */
+  const bridges: { x: number; y: number; angle: number; w: number }[] = [];
+  if (river) {
+    for (const road of roads) {
+      for (let i = 0; i < road.pts.length - 1; i++) {
+        const [ax, ay] = road.pts[i], [bx2, by2] = road.pts[i + 1];
+        for (let j = 0; j < river.length - 1; j++) {
+          const [cx2, cy2] = river[j], [dx2, dy2] = river[j + 1];
+          // 선분 교차 판정
+          const d = (bx2 - ax) * (dy2 - cy2) - (by2 - ay) * (dx2 - cx2);
+          if (Math.abs(d) < 1e-6) continue;
+          const t1 = ((cx2 - ax) * (dy2 - cy2) - (cy2 - ay) * (dx2 - cx2)) / d;
+          const t2 = ((cx2 - ax) * (by2 - ay) - (cy2 - ay) * (bx2 - ax)) / d;
+          if (t1 < 0 || t1 > 1 || t2 < 0 || t2 > 1) continue;
+          bridges.push({
+            x: ax + t1 * (bx2 - ax),
+            y: ay + t1 * (by2 - ay),
+            angle: (Math.atan2(dy2 - cy2, dx2 - cx2) * 180) / Math.PI,
+            w: road.w + 8
+          });
+        }
+      }
+    }
+  }
+
   /* 7) 성벽 (옵션): 건물들을 감싸는 다각형 */
   let wall: [number, number][] | null = null;
-  if (opts.walled && buildings.length > 0) {
+  if ((opts.walled || P.wall) && buildings.length > 0) {
     let maxR = 0;
     for (const b of buildings) maxR = Math.max(maxR, Math.hypot(b.x - cx, b.y - cy));
     const wr = maxR + 42;
@@ -214,7 +308,7 @@ export function generateVillage(opts: VillageOptions): Village {
     wall = pts;
   }
 
-  return { width, height, roads, buildings, fields, plaza, well, river, wall, seed: opts.seed };
+  return { width, height, roads, buildings, fields, plaza, well, river, wall, bridges, kind, seed: opts.seed };
 }
 
 /* ═══════════ 렌더 ═══════════ */
@@ -236,16 +330,51 @@ function polyPath(pts: [number, number][], close = true): string {
 /** 건물 글리프: 위에서 본 사각형 + 지붕 능선 */
 function buildingGlyph(b: Building): string {
   const hw = b.w / 2, hh = b.h / 2;
-  const fill = b.kind === 'temple' ? '#c9b7d4' : b.kind === 'inn' ? '#d6b98f' : b.kind === 'barn' ? '#c2ab84' : BLD_FILL;
+  const fill =
+    b.kind === 'temple' ? '#c9b7d4'
+    : b.kind === 'inn' ? '#d6b98f'
+    : b.kind === 'shop' ? '#d9c98f'
+    : b.kind === 'barn' ? '#c2ab84'
+    : b.kind === 'smithy' ? '#a89a92'
+    : b.kind === 'mill' ? '#cbbfa0'
+    : b.kind === 'stable' ? '#bfae8e'
+    : b.kind === 'tower' ? '#b8b0a4'
+    : BLD_FILL;
   const inner =
     b.kind === 'barn'
       ? `<line x1="${-hw + 2}" y1="0" x2="${hw - 2}" y2="0" stroke="${INK}" stroke-width="0.8" stroke-opacity="0.5"/>`
       : `<line x1="${-hw + 2}" y1="0" x2="${hw - 2}" y2="0" stroke="${BLD_ROOF}" stroke-width="1.6"/>` +
         `<line x1="${-hw + 2}" y1="${-hh + 1.5}" x2="${hw - 2}" y2="${-hh + 1.5}" stroke="${INK}" stroke-width="0.6" stroke-opacity="0.35"/>`;
-  const cross =
-    b.kind === 'temple'
-      ? `<circle cx="0" cy="${-hh - 4}" r="2.4" fill="none" stroke="${INK}" stroke-width="1"/>`
-      : '';
+  // 건물별 식별 표시
+  let mark = '';
+  if (b.kind === 'temple') {
+    mark = `<circle cx="0" cy="${-hh - 4}" r="2.4" fill="none" stroke="${INK}" stroke-width="1"/>`;
+  } else if (b.kind === 'smithy') {
+    // 대장간: 모루 + 연기 굴뚝
+    mark =
+      `<rect x="-2" y="${-hh - 5}" width="4" height="4" fill="${INK}" fill-opacity="0.7"/>` +
+      `<path d="M-3,1 L3,1 L2,-2 L-2,-2 Z" fill="${INK}" fill-opacity="0.45"/>`;
+  } else if (b.kind === 'mill') {
+    // 방앗간: 풍차 날개
+    mark =
+      `<circle cx="0" cy="0" r="2" fill="none" stroke="${INK}" stroke-width="0.9"/>` +
+      `<line x1="0" y1="0" x2="${hw * 0.8}" y2="${-hh * 0.7}" stroke="${INK}" stroke-width="0.9"/>` +
+      `<line x1="0" y1="0" x2="${-hw * 0.8}" y2="${hh * 0.7}" stroke="${INK}" stroke-width="0.9"/>` +
+      `<line x1="0" y1="0" x2="${hw * 0.8}" y2="${hh * 0.7}" stroke="${INK}" stroke-width="0.9"/>` +
+      `<line x1="0" y1="0" x2="${-hw * 0.8}" y2="${-hh * 0.7}" stroke="${INK}" stroke-width="0.9"/>`;
+  } else if (b.kind === 'stable') {
+    // 마구간: 칸 나눔
+    mark =
+      `<line x1="${-hw / 3}" y1="${-hh + 1}" x2="${-hw / 3}" y2="${hh - 1}" stroke="${INK}" stroke-width="0.7" stroke-opacity="0.6"/>` +
+      `<line x1="${hw / 3}" y1="${-hh + 1}" x2="${hw / 3}" y2="${hh - 1}" stroke="${INK}" stroke-width="0.7" stroke-opacity="0.6"/>`;
+  } else if (b.kind === 'tower') {
+    // 망루: 원형 + 총안
+    mark = `<circle cx="0" cy="0" r="${Math.min(hw, hh) * 0.72}" fill="none" stroke="${INK}" stroke-width="1.1"/>`;
+  } else if (b.kind === 'inn') {
+    // 여관: 간판
+    mark = `<rect x="${hw - 1}" y="-2.5" width="4" height="5" fill="${INK}" fill-opacity="0.5"/>`;
+  }
+  const cross = mark;
   return (
     `<g transform="translate(${b.x.toFixed(1)},${b.y.toFixed(1)}) rotate(${b.angle.toFixed(1)})">` +
     `<rect x="${-hw}" y="${-hh}" width="${b.w}" height="${b.h}" rx="1.5" fill="${fill}" stroke="${INK}" stroke-width="1.1"/>` +
@@ -294,6 +423,23 @@ export function renderVillageSvg(v: Village, opts: { title?: string } = {}): str
   const plazaEl = v.plaza
     ? `<circle cx="${v.plaza.x.toFixed(1)}" cy="${v.plaza.y.toFixed(1)}" r="${v.plaza.r.toFixed(1)}" fill="${PLAZA_FILL}" stroke="${ROAD_EDGE}" stroke-width="1.2" stroke-opacity="0.7"/>`
     : '';
+
+  // 다리: 개천을 건너는 도로 지점에 널판 표현
+  const bridgeEl = (v.bridges ?? [])
+    .map((b) => {
+      const hw = b.w / 2;
+      let planks = '';
+      for (let k = -2; k <= 2; k++) {
+        planks += `<line x1="${k * 4}" y1="${-hw}" x2="${k * 4}" y2="${hw}" stroke="${INK}" stroke-width="0.7" stroke-opacity="0.5"/>`;
+      }
+      return (
+        `<g transform="translate(${b.x.toFixed(1)},${b.y.toFixed(1)}) rotate(${(b.angle + 90).toFixed(1)})">` +
+        `<rect x="-11" y="${-hw}" width="22" height="${b.w}" fill="${ROAD_FILL}" stroke="${INK}" stroke-width="1.2"/>` +
+        planks +
+        `</g>`
+      );
+    })
+    .join('');
   const wellEl = v.well
     ? `<g><circle cx="${v.well.x.toFixed(1)}" cy="${v.well.y.toFixed(1)}" r="5" fill="${WATER}" fill-opacity="0.8" stroke="${INK}" stroke-width="1.2"/>` +
       `<circle cx="${v.well.x.toFixed(1)}" cy="${v.well.y.toFixed(1)}" r="2" fill="none" stroke="${INK}" stroke-width="0.8"/></g>`
@@ -320,10 +466,12 @@ export function renderVillageSvg(v: Village, opts: { title?: string } = {}): str
     `<rect x="${f1}" y="${f1}" width="${W - f1 * 2}" height="${H - f1 * 2}" fill="none" stroke="${INK}" stroke-width="2.5"/>` +
     `<rect x="${f2}" y="${f2}" width="${W - f2 * 2}" height="${H - f2 * 2}" fill="none" stroke="${INK}" stroke-width="1" stroke-opacity="0.6"/>`;
 
+  const kindLabel = { hamlet: '촌락', village: '마을', town: '읍', citadel: '성채도시' }[v.kind] ?? '마을';
   const title = opts.title
     ? `<g><rect x="${W / 2 - 110}" y="26" width="220" height="34" rx="3" fill="${PAPER}" stroke="${INK}" stroke-width="1.5"/>` +
       `<text x="${W / 2}" y="49" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="17" font-weight="bold" fill="${INK}">${opts.title.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</text></g>`
-    : '';
+    : `<g><rect x="${W / 2 - 60}" y="26" width="120" height="30" rx="3" fill="${PAPER}" stroke="${INK}" stroke-width="1.3"/>` +
+      `<text x="${W / 2}" y="46" text-anchor="middle" font-family="Georgia, serif" font-size="14" font-style="italic" fill="${INK}">${kindLabel}</text></g>`;
 
   // 범례
   const legend =
@@ -340,6 +488,7 @@ export function renderVillageSvg(v: Village, opts: { title?: string } = {}): str
     `<rect width="${W}" height="${H}" fill="${PAPER}"/>` +
     riverPath +
     roadEdge + roadBase +
+    bridgeEl +
     plazaEl +
     fieldsEl +
     bldEl +

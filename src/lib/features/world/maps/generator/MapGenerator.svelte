@@ -17,6 +17,13 @@
   let islandLevel = 0.3; // 섬 밀도 0~1
   let wide = false; // 넓은 세계 (1600×1120)
   // 마을 전용
+  let vKind: 'hamlet' | 'village' | 'town' | 'citadel' = 'village'; // 취락 유형
+  const V_KINDS = [
+    { v: 'hamlet', label: '촌락' },
+    { v: 'village', label: '마을' },
+    { v: 'town', label: '읍' },
+    { v: 'citadel', label: '성채' }
+  ] as const;
   let vDensity = 0.55;   // 건물 밀도
   let vRiver = true;     // 개천
   let vWalled = false;   // 성벽
@@ -36,6 +43,7 @@
     if (mapType === 'village') {
       const v = generateVillage({
         seed: seed.trim() || 'genesis',
+        kind: vKind,
         density: vDensity,
         river: vRiver,
         walled: vWalled,
@@ -88,7 +96,7 @@
         pins: [],
         mapGen:
           mapType === 'village'
-            ? { seed: lastSeed, type: 'village', density: vDensity, river: vRiver, walled: vWalled, title: worldName, stage: 10 }
+            ? { seed: lastSeed, type: 'village', kind: vKind, density: vDensity, river: vRiver, walled: vWalled, title: worldName, stage: 11 }
             : { seed: lastSeed, cellCount, seaLevel, continents, islands: islandLevel, wide, title: worldName, type: mapType, stage: 10 }
       }
     });
@@ -167,8 +175,17 @@
 
     {#if mapType === 'village'}
       <!-- 마을 전용 조절 -->
+      <div class="flex gap-1">
+        {#each V_KINDS as k}
+          <button
+            on:click={() => { vKind = k.v; generate(); }}
+            class="flex-1 py-1 rounded-lg text-[11px] font-bold border transition {vKind === k.v ? 'border-primary text-primary' : 'border-line text-muted'}"
+          >{k.label}</button>
+        {/each}
+      </div>
+
       <label class="block">
-        <span class="text-[11px] text-muted">마을 크기 — {vDensity < 0.35 ? '작은 마을' : vDensity < 0.7 ? '보통' : '큰 마을'}</span>
+        <span class="text-[11px] text-muted">건물 밀도 — {vDensity < 0.35 ? '듬성' : vDensity < 0.7 ? '보통' : '빽빽'}</span>
         <input type="range" min="0.1" max="1" step="0.05" bind:value={vDensity} on:change={generate} class="w-full" />
       </label>
       <div class="flex items-center gap-4">
