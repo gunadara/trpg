@@ -346,9 +346,33 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     .join('');
 
   /* 산 */
+  // 강이 지나는 곳 주변에는 산 글리프를 그리지 않는다.
+  // (실제 지도도 하천 옆엔 산 기호를 비워 계곡처럼 보이게 한다)
+  const riverClear = Math.min(t.width, t.height) * 0.022;
+  const nearRiver = (cx: number, cy: number): boolean => {
+    for (const line of riverLines) {
+      for (let k = 0; k < line.length - 1; k++) {
+        const [ax, ay] = line[k], [bx, by] = line[k + 1];
+        const dx = bx - ax, dy = by - ay;
+        const L2 = dx * dx + dy * dy;
+        let tt = L2 === 0 ? 0 : ((cx - ax) * dx + (cy - ay) * dy) / L2;
+        tt = Math.max(0, Math.min(1, tt));
+        if (Math.hypot(cx - (ax + tt * dx), cy - (ay + tt * dy)) < riverClear) return true;
+      }
+    }
+    return false;
+  };
+
   const mtnCells = t.heights
     .map((_, i) => i)
-    .filter((i) => !isSea(i) && !(t.lake && t.lake[i]) && rel(i) >= 0.48 && jitter(i, 7) < 0.75)
+    .filter(
+      (i) =>
+        !isSea(i) &&
+        !(t.lake && t.lake[i]) &&
+        rel(i) >= 0.48 &&
+        jitter(i, 7) < 0.75 &&
+        !nearRiver(t.centers[i][0], t.centers[i][1])
+    )
     .sort((a, b) => t.centers[a][1] - t.centers[b][1]);
   const glyphs = mtnCells
     .map((i) => {
