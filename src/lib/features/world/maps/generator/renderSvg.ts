@@ -22,6 +22,7 @@ const OCEAN_DEEP = '#c3c2a8';  // 깊은 바다 — 살짝 어둡고 푸른기
 const WAVE_INK = '#7d94a0';
 const TUNDRA = '#dad9d0';      // 툰드라 — 회백
 const DESERT = '#e0d2a0';      // 사막 — 모래
+const MARSH = '#b9c39a';       // 늪지 — 탁한 습지 녹색
 const MTN_SNOW = '#e7e4da';    // 한랭지 산 = 설산
 const SERIF = "Georgia,'Times New Roman',serif";
 
@@ -83,6 +84,22 @@ function mountainGlyph(x: number, y: number, s: number, seed = 0): string {
   const highlight =
     `<path d="M${ax.toFixed(1)},${top.toFixed(1)} L${(l + (ax - l) * 0.5).toFixed(1)},${(base - (base - top) * 0.25).toFixed(1)} L${(ax - s * 0.15).toFixed(1)},${base.toFixed(1)} Z" fill="#e4dcc0" fill-opacity="0.45"/>`;
   return sub + `<path d="${body}" fill="${MTN_FILL}" stroke="${INK}" stroke-width="1.1" stroke-linejoin="round"/>` + highlight + hatch;
+}
+
+/** 늪지 갈대: 가는 줄기 3~4개 + 끝 이삭 */
+function reedGlyph(x: number, y: number, s: number, seed = 0): string {
+  const n = 3 + (jitter(seed, 31) > 0.5 ? 1 : 0);
+  let out = '';
+  for (let k = 0; k < n; k++) {
+    const off = (k - (n - 1) / 2) * s * 0.55;
+    const lean = (jitter(seed, 32 + k) - 0.5) * s * 0.5;
+    const bx = x + off, by = y + s * 0.5;
+    const tx2 = bx + lean, ty2 = y - s * 0.9;
+    out +=
+      `<line x1="${bx.toFixed(1)}" y1="${by.toFixed(1)}" x2="${tx2.toFixed(1)}" y2="${ty2.toFixed(1)}" stroke="${INK}" stroke-width="0.7" stroke-opacity="0.75"/>` +
+      `<ellipse cx="${tx2.toFixed(1)}" cy="${(ty2 - s * 0.12).toFixed(1)}" rx="${(s * 0.14).toFixed(1)}" ry="${(s * 0.28).toFixed(1)}" fill="${INK}" fill-opacity="0.5"/>`;
+  }
+  return out;
 }
 
 function treeGlyph(x: number, y: number, s: number): string {
@@ -250,10 +267,36 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
   /* 기온: 위(북)일수록 한랭, 고도 높을수록 한랭 */
   const temp = (i: number) =>
     (t.centers[i][1] / t.height) * 0.95 + 0.03 - rel(i) * 0.3;
-  type Biome = 'tundra' | 'desert' | 'grass';
+  // 강을 먼저 계산 (늪지 판정에 물가 여부가 필요)
+  const riverLines = opts.riversOverride ?? buildRivers(t, opts.scale === 'region' ? 1.8 : 1);
+
+  /* 물가 판정: 호수에 접했거나 강이 가까운 저지대 셀 */
+  const waterside = new Set<number>();
+  if (t.lake) {
+    for (let i = 0; i < t.lake.length; i++) {
+      if (!t.lake[i]) continue;
+      for (const nb of t.neighbors[i]) if (!t.lake[nb] && !isSea(nb)) waterside.add(nb);
+    }
+  }
+  {
+    const near = Math.min(t.width, t.height) * 0.018;
+    for (const line of riverLines) {
+      for (const [rx, ry] of line) {
+        for (let i = 0; i < t.centers.length; i++) {
+          if (isSea(i) || (t.lake && t.lake[i])) continue;
+          const [cx, cy] = t.centers[i];
+          if (Math.abs(cx - rx) < near && Math.abs(cy - ry) < near) waterside.add(i);
+        }
+      }
+    }
+  }
+
+  type Biome = 'tundra' | 'desert' | 'marsh' | 'grass';
   const biome = (i: number): Biome => {
     if (temp(i) < 0.24) return 'tundra';
     if (temp(i) > 0.66 && t.moisture[i] < 0.42) return 'desert';
+    // 늪지: 물가 + 저지대 + 습한 곳
+    if (waterside.has(i) && rel(i) < 0.2 && t.moisture[i] > 0.5) return 'marsh';
     return 'grass';
   };
 
@@ -264,7 +307,8 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     const b = biome(i);
     if (b === 'grass') continue;
     const d = polyToPath(t.polygons[i]);
-    if (d) bandPaths.push(`<path d="${d}" fill="${b === 'tundra' ? TUNDRA : DESERT}"/>`);
+    const bc = b === 'tundra' ? TUNDRA : b === 'desert' ? DESERT : MARSH;
+    if (d) bandPaths.push(`<path d="${d}" fill="${bc}"/>`);
   }
   for (let i = 0; i < t.polygons.length; i++) {
     if (isSea(i)) continue;
@@ -299,7 +343,6 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
   }
 
   /* 강 */
-  const riverLines = opts.riversOverride ?? buildRivers(t, opts.scale === 'region' ? 1.8 : 1);
   const riverPaths = riverLines
     .map((r) => {
       const pts = smoothOpen(r, 2);
@@ -385,6 +428,19 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     .join('');
 
   /* 사막 점무늬 */
+  /* 늪지 갈대 */
+  const marshCells = t.heights
+    .map((_, i) => i)
+    .filter((i) => !isSea(i) && !(t.lake && t.lake[i]) && biome(i) === 'marsh' && jitter(i, 41) < 0.5);
+  const marshGlyphs = marshCells
+    .map((i) => {
+      const [cx, cy] = t.centers[i];
+      const jx = (jitter(i, 42) - 0.5) * 7;
+      const jy = (jitter(i, 43) - 0.5) * 5;
+      return reedGlyph(cx + jx, cy + jy, 4.2 + jitter(i, 44) * 1.6, i);
+    })
+    .join('');
+
   const desertDots = t.heights
     .map((_, i) => i)
     .filter((i) => !isSea(i) && !(t.lake && t.lake[i]) && biome(i) === 'desert' && jitter(i, 21) < 0.3)
@@ -583,6 +639,11 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
       glyph: (x, y) => `<circle cx="${x - 4}" cy="${y}" r="1.1" fill="${INK}" fill-opacity="0.5"/><circle cx="${x + 1}" cy="${y - 3}" r="1.1" fill="${INK}" fill-opacity="0.5"/><circle cx="${x + 5}" cy="${y + 2}" r="1.1" fill="${INK}" fill-opacity="0.5"/>`,
       label: '사막'
     });
+  if (marshCells.length > 0)
+    legendEntries.push({
+      glyph: (x, y) => reedGlyph(x, y + 1, 4.5, 3),
+      label: '늪지'
+    });
   if (hasTundra)
     legendEntries.push({
       glyph: (x, y) => `<rect x="${x - 6}" y="${y - 5}" width="12" height="10" fill="${TUNDRA}" stroke="${INK}" stroke-width="0.7"/>`,
@@ -626,6 +687,7 @@ export function renderTerrainSvg(t: Terrain, opts: RenderOptions = {}): string {
     `<g clip-path="url(#land)" opacity="0.65">${bandPaths.join('')}</g>` +
     `<g clip-path="url(#land)">${lakePaths}</g>` +
     `<g clip-path="url(#land)">${trees}</g>` +
+    `<g clip-path="url(#land)">${marshGlyphs}</g>` +
     `<g clip-path="url(#land)">${desertDots}</g>` +
     `<g clip-path="url(#land)">${glyphs}</g>` +
     // 강은 산·숲 위에 그려야 산 글리프에 가려 끊어져 보이지 않는다
