@@ -98,8 +98,8 @@ export function buildWorldDef(opts: TerrainOptions): WorldDef {
     let bestScore = -1;
     for (let attempt = 0; attempt < 60; attempt++) {
       const p: [number, number] = [
-        (0.24 + rand() * 0.52) * width,
-        (0.24 + rand() * 0.52) * height
+        (0.18 + rand() * 0.64) * width,
+        (0.18 + rand() * 0.64) * height
       ];
       const score =
         contCenters.length === 0
@@ -109,17 +109,34 @@ export function buildWorldDef(opts: TerrainOptions): WorldDef {
     }
     contCenters.push(best);
   }
-  const contR = ((region ? 0.82 : nCont === 1 ? 0.74 : nCont === 2 ? 0.6 : 0.52) * Math.min(width, height)) / (nCont === 1 ? 1 : Math.sqrt(nCont));
+  // 대륙 반경: 기본값을 쓰되, '가장 가까운 이웃 대륙까지 거리'로 상한을 걸어
+  // 로브까지 포함해도 옆 대륙과 겹치지 않게 한다.
+  const R_BY_COUNT = [0.62, 0.62, 0.58, 0.50, 0.46, 0.42]; // index = 대륙 수
+  const baseR = (region ? 0.82 : R_BY_COUNT[Math.min(nCont, 5)]) * Math.min(width, height);
 
-  // 각 대륙에 로브(돌출부)를 붙여 큰 본체를 만든다. 대륙이 많을수록 로브를 작게/적게
-  // 해서 옆 대륙과 안 붙게 한다.
+  // 로브가 중심에서 뻗는 최대 도달거리 배수 (아래 lobeReach/lobeSize와 맞춤)
+  const lobeReach = nCont === 1 ? 0.85 : 0.2;
+  const lobeSize = nCont === 1 ? 0.6 : 0.22;
+  const lobeMax = nCont === 1 ? 6 : 7;
+  const REACH = (0.4 + lobeReach) + (0.35 + lobeSize); // 로브 중심거리 + 로브반경
+
+  const contRadii: number[] = contCenters.map(([x, y], i) => {
+    let nearest = Infinity;
+    for (let j = 0; j < contCenters.length; j++) {
+      if (i === j) continue;
+      nearest = Math.min(nearest, Math.hypot(x - contCenters[j][0], y - contCenters[j][1]));
+    }
+    if (!isFinite(nearest)) return baseR;             // 대륙 1개면 제한 없음
+    const cap = (nearest / (REACH * 2)) * 0.94;       // 두 대륙 도달범위가 안 닿게
+    return Math.min(baseR, cap);
+  });
+
+  // 각 대륙에 로브(돌출부)를 붙여 큰 본체를 만든다.
   type Lobe = { x: number; y: number; r: number };
-  const lobeReach = nCont === 1 ? 0.85 : 0.4;   // 로브가 중심에서 뻗는 거리 비율
-  const lobeSize = nCont === 1 ? 0.6 : 0.38;   // 로브 크기 비율
-  const lobeMax = nCont === 1 ? 6 : 3;
-  const contLobes: Lobe[][] = contCenters.map(([ccx, ccy]) => {
+  const contLobes: Lobe[][] = contCenters.map(([ccx, ccy], ci) => {
+    const contR = contRadii[ci];
     const lobes: Lobe[] = [{ x: ccx, y: ccy, r: contR }];
-    const nLobe = (nCont === 1 ? 4 : 2) + Math.floor(rand() * (lobeMax - 1));
+    const nLobe = (nCont === 1 ? 4 : 4) + Math.floor(rand() * (lobeMax - 1));
     for (let i = 0; i < nLobe; i++) {
       const a = rand() * Math.PI * 2;
       const d = contR * (0.4 + rand() * lobeReach);
@@ -138,7 +155,7 @@ export function buildWorldDef(opts: TerrainOptions): WorldDef {
   /* ── 판구조론 산맥 (A안: 산맥만 판 경계로 결정) ──
      세계를 판으로 조각내고, 각 판에 이동 벡터를 줌.
      판끼리 만나는 경계에서 서로 밀면(수렴) → 산맥. */
-  const PLATE_COUNT = 8 + Math.floor(rand() * 5); // 8~12개 판
+  const PLATE_COUNT = 14 + Math.floor(rand() * 7); // 8~12개 판
   const plateSites: [number, number][] = [];
   for (let i = 0; i < PLATE_COUNT; i++) {
     plateSites.push([rand() * width, rand() * height]);
@@ -149,6 +166,10 @@ export function buildWorldDef(opts: TerrainOptions): WorldDef {
     const spd = 0.5 + rand() * 0.5;
     return [Math.cos(a) * spd, Math.sin(a) * spd];
   });
+  // 판 유형: 대륙판(육지 기반) / 해양판(바다 기반) — B안의 핵심
+  // 대략 45%를 해양판으로 (지구도 해양판이 더 넓음)
+  const plateOceanic: boolean[] = plateSites.map(() => rand() < 0.45);
+
   // 점(x,y)이 속한 판 인덱스 = 가장 가까운 plateSite
   const plateOf = (x: number, y: number): number => {
     let best = 0, bd = Infinity;
@@ -159,28 +180,45 @@ export function buildWorldDef(opts: TerrainOptions): WorldDef {
     return best;
   };
 
-  // 판 경계 산맥 강도: 점 주변에서 다른 판을 만나고, 두 판이 서로 미는지(수렴) 계산
-  const plateMountain = (x: number, y: number): number => {
+  /** 판 경계 효과 (B안):
+   *  - 대륙↔대륙 수렴 → 큰 산맥 (히말라야형)
+   *  - 대륙↔해양 수렴 → 대륙 쪽 해안산맥 + 해양 쪽 해구 (안데스형)
+   *  - 해양↔해양 수렴 → 화산섬 호 (일본형)
+   *  - 발산 → 열곡·해령 (살짝 낮아짐) */
+  const plateEffect = (x: number, y: number): { mtn: number; trench: number; volcano: number } => {
     const myPlate = plateOf(x, y);
-    const probe = Math.min(width, height) * 0.02; // 경계 탐지 반경
-    let maxConverge = 0;
-    // 8방향으로 살짝 이동해 다른 판을 만나는지
+    const myOcean = plateOceanic[myPlate];
+    const probe = Math.min(width, height) * 0.040;
+    let mtn = 0, trench = 0, volcano = 0;
+
     for (let k = 0; k < 8; k++) {
       const a = (k / 8) * Math.PI * 2;
-      const nx = x + Math.cos(a) * probe;
-      const ny = y + Math.sin(a) * probe;
-      const other = plateOf(nx, ny);
+      const other = plateOf(x + Math.cos(a) * probe, y + Math.sin(a) * probe);
       if (other === myPlate) continue;
-      // 두 판의 상대 이동이 서로를 향하면(수렴) 양수
       const rel: [number, number] = [
         plateDrift[myPlate][0] - plateDrift[other][0],
         plateDrift[myPlate][1] - plateDrift[other][1]
       ];
-      // 경계 방향(내 판 → 다른 판)으로의 접근 성분
-      const converge = rel[0] * Math.cos(a) + rel[1] * Math.sin(a);
-      if (converge > maxConverge) maxConverge = converge;
+      const conv = rel[0] * Math.cos(a) + rel[1] * Math.sin(a); // +면 수렴, -면 발산
+      const otherOcean = plateOceanic[other];
+
+      if (conv > 0) {
+        // 수렴 경계
+        if (!myOcean && !otherOcean) {
+          mtn = Math.max(mtn, conv * 1.15);            // 대륙-대륙: 최대 산맥
+        } else if (!myOcean && otherOcean) {
+          mtn = Math.max(mtn, conv * 0.95);            // 대륙 쪽: 해안 산맥
+        } else if (myOcean && !otherOcean) {
+          trench = Math.max(trench, conv * 0.9);       // 해양 쪽: 해구
+        } else {
+          volcano = Math.max(volcano, conv * 0.85);    // 해양-해양: 화산섬 호
+        }
+      } else {
+        // 발산 경계: 열곡/해령 — 살짝 꺼짐
+        trench = Math.max(trench, -conv * 0.35);
+      }
     }
-    return maxConverge; // 0~약1.5
+    return { mtn, trench, volcano };
   };
 
   /* 섬 씨앗 */
@@ -189,13 +227,15 @@ export function buildWorldDef(opts: TerrainOptions): WorldDef {
   const safe = 0.12;
   for (let k = 0; k < isleCount; k++) {
     for (let attempt = 0; attempt < 10; attempt++) {
-      const [ccx, ccy] = contCenters[Math.floor(rand() * nCont)];
+      const ci = Math.floor(rand() * nCont);
+      const [ccx, ccy] = contCenters[ci];
+      const cR = contRadii[ci];
       const a = rand() * Math.PI * 2;
-      const d = (1.12 + rand() * 0.48) * contR;
+      const d = (1.12 + rand() * 0.48) * cR;
       const x = ccx + Math.cos(a) * d;
       const y = ccy + Math.sin(a) * d;
       if (x < width * safe || x > width * (1 - safe) || y < height * safe || y > height * (1 - safe)) continue;
-      isles.push({ x, y, r: contR * (0.07 + rand() * 0.09) });
+      isles.push({ x, y, r: cR * (0.07 + rand() * 0.09) });
       break;
     }
   }
@@ -230,16 +270,37 @@ export function buildWorldDef(opts: TerrainOptions): WorldDef {
       mask = Math.max(mask, Math.exp(-d * d * 1.6) * 0.8);
     }
 
-    // 판구조론 산맥: 수렴 경계에서 솟음. 부드럽게 다듬어 산줄기로.
-    const conv = plateMountain(x, y);
-    const ridge = Math.max(0, Math.min(1, (conv - 0.15) * 1.3));
+    // 판구조론 B안: 판 유형에 따라 산맥·해구·화산섬이 다르게 생김
+    const pe = plateEffect(x, y);
+    const ridge = Math.max(0, Math.min(1, (pe.mtn - 0.02) * 1.35));   // 산맥
+    const trench = Math.max(0, Math.min(1, (pe.trench - 0.15) * 1.2)); // 해구·열곡
+    const volcano = Math.max(0, Math.min(1, (pe.volcano - 0.25) * 1.5)); // 화산섬 호
+
+    // 해양판 위에서는 육지가 되기 어렵게 → 판이 대륙 윤곽에도 관여 (B안)
+    const oceanicDamp = plateOceanic[plateOf(x, y)] ? (nCont > 1 ? 0.92 : 0.78) : (nCont > 1 ? 1.15 : 1.06);
 
     const edgeD = Math.min(x, y, width - x, height - y) / margin;
     const e = Math.max(0, Math.min(1, edgeD));
     const edgeMask = e * e * (3 - 2 * e);
 
-    const h = (mask * 0.82 + n01 * 0.28 + detail * 0.06 - 0.24 + ridge * 0.3) * edgeMask;
-    return Math.max(0, Math.min(1, h));
+    /* ── '육지 정도(landness)'와 '고도'를 분리 ──
+       예전엔 하나의 높이값으로 둘 다 처리해서, 바다 비율을 올리면
+       대륙 전체가 해수면 근처로 몰려 노이즈에 조각조각 갈라졌다.
+       이제 landness>0 이면 확실한 육지로 만들고, 고도는 그 위에서 따로 준다. */
+    const flatMask = Math.pow(mask, 0.75);
+    // 바다 비율 슬라이더(seaLevel)는 육지 양을 조절하는 데만 쓴다
+    const seaBias = (seaLevel - 0.42) * 1.25;
+    const landness =
+      (flatMask * 0.80 * oceanicDamp + n01 * 0.24 + detail * 0.06 - 0.52 - seaBias) * edgeMask;
+
+    if (landness <= 0) {
+      // 바다: 해안에서 멀수록 깊게
+      return Math.max(0, seaLevel - 0.015 + landness * 0.75);
+    }
+    // 육지: 기본 평지 + 산맥/화산 (해구는 낮춤). 확실히 해수면 위로.
+    const elev =
+      0.02 + landness * 0.38 + ridge * 0.36 + volcano * 0.32 - trench * 0.12;
+    return Math.min(1, seaLevel + Math.max(0.008, elev));
   };
 
   const moistureAt = (x: number, y: number): number =>
@@ -413,7 +474,8 @@ function fillDepressions(heights: number[], neighbors: number[][], seaLevel: num
       const spill = filled[c] + EPS;
       if (heights[nb] < spill) {
         filled[nb] = spill;
-        if (heights[nb] >= seaLevel) lake[nb] = true; // 물이 차오른 육지 = 호수
+        // 물이 '충분히 깊게' 찬 곳만 호수. 얕게 메워진 곳은 그냥 평지.
+        if (heights[nb] >= seaLevel && spill - heights[nb] > 0.012) lake[nb] = true;
       } else {
         filled[nb] = heights[nb];
       }
@@ -425,7 +487,7 @@ function fillDepressions(heights: number[], neighbors: number[][], seaLevel: num
 
   // 좁쌀 웅덩이 제거: 물 찬 셀이 여러 개 '뭉친' 것만 진짜 호수로 인정.
   // (연결된 호수 셀 군집 크기가 MIN_LAKE 미만이면 호수 표시 해제 = 평지 취급)
-  const MIN_LAKE = 8; // 이 셀 수 이상 뭉쳐야 호수
+  const MIN_LAKE = 16; // 이 셀 수 이상 뭉쳐야 호수
   const visited = new Array(n).fill(false);
   for (let s = 0; s < n; s++) {
     if (!lake[s] || visited[s]) continue;
@@ -485,7 +547,7 @@ function applyClimate(
 }
 
 /** 수력 침식: 셀 그래프 위에서 흐름 누적 → 침식/퇴적 */
-function erode(heights: number[], neighbors: number[][], seaLevel: number, iterations = 2): void {
+function erode(heights: number[], neighbors: number[][], seaLevel: number, iterations = 1): void {
   const n = heights.length;
   for (let iter = 0; iter < iterations; iter++) {
     // 높은 순 정렬
@@ -506,7 +568,7 @@ function erode(heights: number[], neighbors: number[][], seaLevel: number, itera
       const slope = heights[i] - heights[lowest];
       const erosion = Math.min(
         heights[i] - seaLevel, // 바다 밑으론 안 깎음
-        Math.sqrt(flux[i]) * slope * 0.02
+        Math.sqrt(flux[i]) * slope * 0.012
       );
       if (erosion > 0) heights[i] -= erosion * 0.5;
     }

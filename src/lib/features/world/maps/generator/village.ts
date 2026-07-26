@@ -134,7 +134,16 @@ export function generateVillage(opts: VillageOptions): Village {
     if (Math.hypot(x - plaza.x, y - plaza.y) < plaza.r + r + 6) return false;
     // 개천과 겹치지 않게
     if (river) {
-      for (const rp of river) if (Math.hypot(x - rp[0], y - rp[1]) < r + 16) return false;
+      // 폴리라인의 '선분'까지 거리로 검사 (점만 보면 점 사이 구간이 뚫림)
+      for (let k = 0; k < river.length - 1; k++) {
+        const [ax, ay] = river[k], [bx, by] = river[k + 1];
+        const dx = bx - ax, dy = by - ay;
+        const L2 = dx * dx + dy * dy;
+        let tt = L2 === 0 ? 0 : ((x - ax) * dx + (y - ay) * dy) / L2;
+        tt = Math.max(0, Math.min(1, tt));
+        const px = ax + tt * dx, py = ay + tt * dy;
+        if (Math.hypot(x - px, y - py) < r + 20) return false; // 개천 폭 + 여유
+      }
     }
     for (const q of placed) if (Math.hypot(x - q.x, y - q.y) < q.r + r + 7) return false;
     return true;
