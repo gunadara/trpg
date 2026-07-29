@@ -7,8 +7,10 @@
 
   export let onSaved: (docId: string) => void = () => {};
   export let onClose: () => void = () => {};
+  /** 열릴 때 선택돼 있을 지도 유형 (지도 페이지에서 바로가기로 열 때) */
+  export let initialType: 'world' | 'region' | 'village' | null = null;
 
-  let mapType: 'world' | 'region' | 'village' = 'world';
+  let mapType: 'world' | 'region' | 'village' = initialType ?? 'world';
   let worldName = '';
   let seed = String(Math.floor(Math.random() * 90000) + 10000);
   let cellCount = 2500;
@@ -23,6 +25,16 @@
     { v: 'village', label: '마을' },
     { v: 'town', label: '읍' },
     { v: 'citadel', label: '성채' }
+  ] as const;
+  let vBiome: 'auto' | 'grass' | 'forest' | 'desert' | 'tundra' | 'marsh' | 'coast' = 'auto';
+  const V_BIOMES = [
+    { v: 'auto', label: '자동' },
+    { v: 'grass', label: '초원' },
+    { v: 'forest', label: '숲' },
+    { v: 'desert', label: '사막' },
+    { v: 'tundra', label: '설원' },
+    { v: 'marsh', label: '늪지' },
+    { v: 'coast', label: '해안' }
   ] as const;
   let vDensity = 0.55;   // 건물 밀도
   let vRiver = true;     // 개천
@@ -44,6 +56,7 @@
       const v = generateVillage({
         seed: seed.trim() || 'genesis',
         kind: vKind,
+        biome: vBiome === 'auto' ? undefined : vBiome,
         density: vDensity,
         river: vRiver,
         walled: vWalled,
@@ -96,7 +109,7 @@
         pins: [],
         mapGen:
           mapType === 'village'
-            ? { seed: lastSeed, type: 'village', kind: vKind, density: vDensity, river: vRiver, walled: vWalled, title: worldName, stage: 11 }
+            ? { seed: lastSeed, type: 'village', kind: vKind, biome: vBiome, density: vDensity, river: vRiver, walled: vWalled, title: worldName, stage: 11 }
             : { seed: lastSeed, cellCount, seaLevel, continents, islands: islandLevel, wide, title: worldName, type: mapType, stage: 10 }
       }
     });
@@ -183,6 +196,14 @@
           >{k.label}</button>
         {/each}
       </div>
+
+      <label class="block">
+        <span class="text-[11px] text-muted">주변 환경</span>
+        <select bind:value={vBiome} on:change={generate}
+          class="w-full mt-1 rounded-lg border border-line bg-canvas px-2 py-1.5 text-xs text-ink outline-none focus:border-primary">
+          {#each V_BIOMES as b}<option value={b.v}>{b.label}</option>{/each}
+        </select>
+      </label>
 
       <label class="block">
         <span class="text-[11px] text-muted">건물 밀도 — {vDensity < 0.35 ? '듬성' : vDensity < 0.7 ? '보통' : '빽빽'}</span>

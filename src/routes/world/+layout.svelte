@@ -54,7 +54,8 @@
   const VIEW_ITEMS = [
     { href: '/world/timeline', icon: '📜', label: '연표' },
     { href: '/world/graph', icon: '🕸️', label: '관계도' },
-    { href: '/world/map', icon: '🗺️', label: '지도' }
+    { href: '/world/map', icon: '🗺️', label: '지도' },
+    { href: '/world/interior', icon: '🏠', label: '실내 도면' }
   ];
   function goHref(href: string) {
     goto(href);

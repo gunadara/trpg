@@ -112,6 +112,21 @@
   $: selected = mapDocs.find((d) => d.id === selectedId) ?? null;
   $: pins = ((selected?.attributes as any)?.pins ?? []) as MapPin[];
 
+  // 지도 유형 아이콘 (목록에서 한눈에 구분)
+  function mapIcon(d: any): string {
+    const t = (d?.attributes as any)?.mapGen?.type;
+    if (t === 'village') return '🏘️';
+    if (t === 'region') return '🗺️';
+    if (t === 'world') return '🌍';
+    return '📍'; // 업로드 지도
+  }
+  // 생성기를 특정 탭으로 바로 열기
+  let genInitialType: 'world' | 'region' | 'village' | null = null;
+  function openGenerator(type: 'world' | 'region' | 'village') {
+    genInitialType = type;
+    showGenerator = true;
+  }
+
   let editMode = false;
   let fullscreen = false; // 지도 전체화면 모드
   // 전체화면일 때 배경 페이지 스크롤 잠금 (스크롤바 겹침 방지)
@@ -223,14 +238,21 @@
           class="min-w-0 rounded-lg border border-line bg-bubble px-2 py-1.5 text-xs text-ink outline-none focus:border-primary"
         >
           {#each mapDocs as d}
-            <option value={d.id}>{d.title || '제목 없는 장소'}</option>
+            <option value={d.id}>{mapIcon(d)} {d.title || '제목 없는 장소'}</option>
           {/each}
         </select>
       {/if}
     </div>
 
     <button
-      on:click={() => (showGenerator = true)}
+      on:click={() => openGenerator('village')}
+      class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border border-line text-muted hover:border-primary hover:text-primary transition"
+      title="마을 지도 만들기"
+    >
+      🏘️ 마을
+    </button>
+    <button
+      on:click={() => openGenerator('world')}
       class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border border-line text-muted hover:border-primary hover:text-primary transition"
     >
       🌍 생성
@@ -370,7 +392,7 @@
            on:keydown={(e) => e.key === 'Escape' && (showGenerator = false)}
            role="button" tabindex="-1">
         <div on:click|stopPropagation role="dialog" class="w-full flex justify-center">
-          <MapGenerator onSaved={handleGeneratedSaved} onClose={() => (showGenerator = false)} />
+          <MapGenerator initialType={genInitialType} onSaved={handleGeneratedSaved} onClose={() => (showGenerator = false)} />
         </div>
       </div>
     {/if}
