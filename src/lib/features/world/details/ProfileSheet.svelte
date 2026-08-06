@@ -11,7 +11,8 @@
     type SheetField,
     getPath,
     setPath,
-    ensureShape
+    ensureShape,
+    isVisible
   } from '$lib/domain/sheetSchemas';
 
   export let value: any = {};
@@ -110,7 +111,7 @@
           : 'space-y-3'}
       >
         <div class="grid {colsClass(cols)} gap-2 sm:gap-3">
-          {#each sec.fields as f (f.key)}
+          {#each sec.fields.filter((f) => isVisible(p, f)) as f (f.key)}
             <div class="min-w-0 {spanClass(f, cols)}">
               <label
                 class="block mb-1 ml-1 {sec.title
@@ -139,15 +140,21 @@
                   class="ps-input"
                 />
               {:else if f.type === 'select'}
-                <select
-                  value={getPath(p, f.key) ?? ''}
-                  on:change={(e) => onInput(f.key, e.currentTarget.value)}
-                  class="ps-input appearance-none"
-                >
-                  {#each f.options ?? [] as opt}
-                    <option value={opt.value}>{opt.label}</option>
-                  {/each}
-                </select>
+                <div class="relative">
+                  <select
+                    value={getPath(p, f.key) ?? ''}
+                    on:change={(e) => onInput(f.key, e.currentTarget.value)}
+                    class="ps-input appearance-none pe-8 cursor-pointer"
+                  >
+                    {#each f.options ?? [] as opt}
+                      <option value={opt.value}>{opt.label}</option>
+                    {/each}
+                  </select>
+                  <span
+                    class="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2
+                           text-slate-400 dark:text-slate-500 text-[10px]"
+                    aria-hidden="true">▼</span>
+                </div>
               {:else if f.type === 'long'}
                 <textarea
                   rows="2"

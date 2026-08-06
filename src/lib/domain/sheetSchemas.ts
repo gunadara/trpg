@@ -18,6 +18,11 @@ export type SheetField = {
   span?: number;
   /** select 전용 */
   options?: { value: string; label: string }[];
+  /**
+   * 다른 칸의 값에 따라 보이거나 숨김.
+   * 예: 무기일 때만 공격력 → { key: 'type', in: ['weapon'] }
+   */
+  visibleIf?: { key: string; in: string[] };
 };
 
 export type SheetSection = {
@@ -469,7 +474,7 @@ const EVENTS: SheetSchema = {
             { value: 'world', label: '🌍 세계' }
           ]
         },
-        { key: 'startDate', label: '시작 시점', type: 'text' },
+        { key: 'startDate', label: '시작 시점', type: 'text', placeholder: '예: 제국력 412년 봄' },
         { key: 'endDate', label: '종료 시점', type: 'text' }
       ]
     },
@@ -534,15 +539,15 @@ const ITEMS: SheetSchema = {
         {
           key: 'grade', label: '등급', type: 'select',
           options: [
-            { value: 'common', label: '⚪ 일반' },
-            { value: 'magic', label: '🟢 매직' },
-            { value: 'rare', label: '🔵 희귀' },
-            { value: 'epic', label: '🟣 영웅' },
-            { value: 'legendary', label: '🟠 전설' }
+            { value: 'common', label: '⚪ 일반 (Common)' },
+            { value: 'magic', label: '🟢 매직 (Magic)' },
+            { value: 'rare', label: '🔵 희귀 (Rare)' },
+            { value: 'epic', label: '🟣 영웅 (Epic)' },
+            { value: 'legendary', label: '🟠 전설 (Legendary)' }
           ]
         },
-        { key: 'price', label: '가격 (Gold)', type: 'number' },
-        { key: 'weight', label: '무게', type: 'text' }
+        { key: 'price', label: '가격 (Gold)', type: 'number', placeholder: '예: 500' },
+        { key: 'weight', label: '무게', type: 'text', placeholder: '예: 1.5 kg' }
       ]
     },
     {
@@ -551,12 +556,15 @@ const ITEMS: SheetSchema = {
       title: '성능',
       cols: 2,
       fields: [
-        { key: 'damage', label: '공격력 · 데미지', type: 'text' },
-        { key: 'damageType', label: '속성 · 타입', type: 'text' },
-        { key: 'defense', label: '방어력 (AC)', type: 'text' },
-        { key: 'material', label: '착용 부위 · 재질', type: 'text' },
-        { key: 'requirement', label: '착용 · 사용 조건', type: 'text', span: 2 },
-        { key: 'effects', label: '특수 효과 및 설명', type: 'long', span: 2 }
+        // 무기일 때만
+        { key: 'damage', label: '공격력 · 데미지 주사위', type: 'text', placeholder: '예: 50 또는 1d8 + 2', visibleIf: { key: 'type', in: ['weapon'] } },
+        { key: 'damageType', label: '속성 · 타입', type: 'text', placeholder: '예: 화염, 베기, 관통', visibleIf: { key: 'type', in: ['weapon'] } },
+        // 방어구일 때만
+        { key: 'defense', label: '방어력 (AC)', type: 'text', placeholder: '예: 15', visibleIf: { key: 'type', in: ['armor'] } },
+        { key: 'material', label: '착용 부위 · 재질', type: 'text', placeholder: '예: 중갑, 판금, 가죽', visibleIf: { key: 'type', in: ['armor'] } },
+        // 공통
+        { key: 'requirement', label: '착용 · 사용 조건', type: 'text', span: 2, placeholder: '예: 전사 전용, Lv.10 이상, 힘 15 필요' },
+        { key: 'effects', label: '특수 효과 및 설명', type: 'long', span: 2, placeholder: '아이템의 특수 능력이나 플레이버 텍스트' }
       ]
     },
     {
@@ -595,9 +603,9 @@ const SKILLS: SheetSchema = {
             { value: 'ultimate', label: '👑 궁극기 / 고유기' }
           ]
         },
-        { key: 'cost', label: '자원 소모', type: 'text' },
-        { key: 'cooldown', label: '쿨타임', type: 'text' },
-        { key: 'range', label: '사거리', type: 'text' }
+        { key: 'cost', label: '자원 소모', type: 'text', placeholder: '예: 마나 20' },
+        { key: 'cooldown', label: '쿨타임', type: 'text', placeholder: '예: 3턴' },
+        { key: 'range', label: '사거리', type: 'text', placeholder: '예: 근접 / 20m' }
       ]
     },
     {
@@ -669,7 +677,7 @@ const QUESTS: SheetSchema = {
       title: '보상',
       cols: 2,
       fields: [
-        { key: 'reward_gold', label: '보상 (Gold)', type: 'number' },
+        { key: 'reward_gold', label: '보상 (Gold)', type: 'number', placeholder: '예: 500' },
         { key: 'reward_exp', label: '보상 (EXP)', type: 'number' },
         { key: 'reward_items', label: '보상 아이템', type: 'list', span: 2 }
       ]
@@ -780,6 +788,13 @@ export function setPath(root: any, path: string, val: any): void {
     cur = cur[keys[i]];
   }
   cur[keys[keys.length - 1]] = val;
+}
+
+/** visibleIf 조건을 만족하는지 */
+export function isVisible(root: any, f: SheetField): boolean {
+  if (!f.visibleIf) return true;
+  const cur = String(getPath(root, f.visibleIf.key) ?? '');
+  return f.visibleIf.in.includes(cur);
 }
 
 /** 스키마에 있는 칸을 빈 값으로 미리 만들어 둔다 */
