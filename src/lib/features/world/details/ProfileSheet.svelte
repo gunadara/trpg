@@ -18,13 +18,19 @@
   export let schema: SheetSchema;
 
   if (!value.profile) value.profile = {};
-  $: p = value.profile;
+
+  // 값을 어디에 저장할지 — 흡수한 시트는 attributes.* 를 그대로 쓴다
+  $: p = schema.dataRoot === 'root' ? value : value.profile;
 
   // 스키마가 바뀌어도(카테고리 이동) 빈 칸을 채워둔다
   $: {
     ensureShape(p, schema);
-    if (!p.extra) p.extra = {};
+    if (!value.profile) value.profile = {};
+    if (!value.profile.extra) value.profile.extra = {};
   }
+
+  // 추가한 칸은 저장 루트와 상관없이 항상 profile.extra 아래
+  $: extraStore = value.profile.extra;
 
   function touch() {
     value = value;
@@ -124,6 +130,24 @@
                   on:input={(e) => onInput(f.key, e.currentTarget.value)}
                   class="ps-input"
                 />
+              {:else if f.type === 'number'}
+                <input
+                  type="number"
+                  value={getPath(p, f.key) ?? ''}
+                  placeholder={f.placeholder ?? ''}
+                  on:input={(e) => onInput(f.key, e.currentTarget.value)}
+                  class="ps-input"
+                />
+              {:else if f.type === 'select'}
+                <select
+                  value={getPath(p, f.key) ?? ''}
+                  on:change={(e) => onInput(f.key, e.currentTarget.value)}
+                  class="ps-input appearance-none"
+                >
+                  {#each f.options ?? [] as opt}
+                    <option value={opt.value}>{opt.label}</option>
+                  {/each}
+                </select>
               {:else if f.type === 'long'}
                 <textarea
                   rows="2"
@@ -164,7 +188,7 @@
           {/each}
         </div>
 
-        <ExtraFields extra={p.extra} sec={sec.id} onChange={touch} />
+        <ExtraFields extra={extraStore} sec={sec.id} onChange={touch} />
       </div>
     </div>
   {/each}

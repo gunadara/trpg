@@ -7,7 +7,7 @@
 // key는 점(.)으로 중첩 가능:  'basic.age'  →  attributes.profile.basic.age
 // 저장 위치는 항상 attributes.profile 아래 → 기존 전용 에디터 데이터와 안 섞임.
 
-export type SheetFieldType = 'text' | 'long' | 'list';
+export type SheetFieldType = 'text' | 'long' | 'list' | 'number' | 'select';
 
 export type SheetField = {
   key: string;
@@ -16,6 +16,8 @@ export type SheetField = {
   placeholder?: string;
   /** 섹션 그리드에서 차지할 칸 수 (기본 1) */
   span?: number;
+  /** select 전용 */
+  options?: { value: string; label: string }[];
 };
 
 export type SheetSection = {
@@ -34,6 +36,13 @@ export type SheetSchema = {
   icon: string;
   title: string;
   subtitle: string;
+  /**
+   * 값을 어디에 저장할지.
+   * - 'profile' (기본): attributes.profile.* — 새로 만든 시트
+   * - 'root': attributes.* — 기존 전용 에디터가 쓰던 자리 그대로.
+   *   흡수한 시트는 이걸 써야 기존 입력값이 마이그레이션 없이 그대로 보인다.
+   */
+  dataRoot?: 'profile' | 'root';
   sections: SheetSection[];
 };
 
@@ -421,12 +430,336 @@ const LOCATIONS: SheetSchema = {
   ]
 };
 
+
+// ────────────────────────────────────────────
+// 아래 5종은 기존 전용 에디터를 흡수한 것 → dataRoot: 'root'
+// (attributes.* 자리를 그대로 써서 기존 입력값이 마이그레이션 없이 보인다)
+// ────────────────────────────────────────────
+
+const EVENTS: SheetSchema = {
+  scope: 'events',
+  icon: '💥',
+  title: '사건 시트',
+  subtitle: '시점 / 경위 / 여파',
+  dataRoot: 'root',
+  sections: [
+    {
+      id: 'basic',
+      icon: '',
+      title: '',
+      cols: 4,
+      fields: [
+        {
+          key: 'type', label: '유형', type: 'select',
+          options: [
+            { value: 'war', label: '⚔️ 전쟁 / 분쟁' },
+            { value: 'incident', label: '🔥 사건 / 사고' },
+            { value: 'conspiracy', label: '🕯️ 음모 / 암투' },
+            { value: 'disaster', label: '🌊 재해 / 이변' },
+            { value: 'festival', label: '🎉 축제 / 의식' },
+            { value: 'discovery', label: '🔍 발견 / 출현' }
+          ]
+        },
+        {
+          key: 'scale', label: '규모', type: 'select',
+          options: [
+            { value: 'personal', label: '👤 개인' },
+            { value: 'local', label: '🏘️ 지역' },
+            { value: 'national', label: '🏳️ 국가' },
+            { value: 'world', label: '🌍 세계' }
+          ]
+        },
+        { key: 'startDate', label: '시작 시점', type: 'text' },
+        { key: 'endDate', label: '종료 시점', type: 'text' }
+      ]
+    },
+    {
+      id: 'where',
+      icon: '📍',
+      title: '무대',
+      cols: 2,
+      fields: [
+        { key: 'location', label: '발생 장소', type: 'text' },
+        { key: 'sortYear', label: '정렬용 연도', type: 'number', placeholder: '예: 412' },
+        { key: 'involved', label: '관련 인물 · 단체', type: 'list', span: 2 }
+      ]
+    },
+    {
+      id: 'flow',
+      icon: '📜',
+      title: '경위',
+      cols: 2,
+      fields: [
+        { key: 'cause', label: '발단 — 왜 일어났나', type: 'long' },
+        { key: 'result', label: '결과 — 어떻게 끝났나', type: 'long' }
+      ]
+    },
+    {
+      id: 'after',
+      icon: '🔥',
+      title: '여파',
+      cols: 2,
+      accent: true,
+      fields: [
+        { key: 'impact', label: '남긴 영향', type: 'long', span: 2 },
+        { key: 'secrets', label: '🔒 숨겨진 진실', type: 'long', span: 2, placeholder: '기록에 안 남은 것' }
+      ]
+    }
+  ]
+};
+
+const ITEMS: SheetSchema = {
+  scope: 'items',
+  icon: '⚔️',
+  title: '아이템 시트',
+  subtitle: '분류 / 성능 / 내력',
+  dataRoot: 'root',
+  sections: [
+    {
+      id: 'basic',
+      icon: '',
+      title: '',
+      cols: 4,
+      fields: [
+        {
+          key: 'type', label: '유형', type: 'select',
+          options: [
+            { value: 'weapon', label: '🗡️ 무기' },
+            { value: 'armor', label: '🛡️ 방어구' },
+            { value: 'accessory', label: '💍 장신구' },
+            { value: 'consumable', label: '🧪 소모품' },
+            { value: 'material', label: '💎 재료 / 보물' }
+          ]
+        },
+        {
+          key: 'grade', label: '등급', type: 'select',
+          options: [
+            { value: 'common', label: '⚪ 일반' },
+            { value: 'magic', label: '🟢 매직' },
+            { value: 'rare', label: '🔵 희귀' },
+            { value: 'epic', label: '🟣 영웅' },
+            { value: 'legendary', label: '🟠 전설' }
+          ]
+        },
+        { key: 'price', label: '가격 (Gold)', type: 'number' },
+        { key: 'weight', label: '무게', type: 'text' }
+      ]
+    },
+    {
+      id: 'spec',
+      icon: '🔧',
+      title: '성능',
+      cols: 2,
+      fields: [
+        { key: 'damage', label: '공격력 · 데미지', type: 'text' },
+        { key: 'damageType', label: '속성 · 타입', type: 'text' },
+        { key: 'defense', label: '방어력 (AC)', type: 'text' },
+        { key: 'material', label: '착용 부위 · 재질', type: 'text' },
+        { key: 'requirement', label: '착용 · 사용 조건', type: 'text', span: 2 },
+        { key: 'effects', label: '특수 효과 및 설명', type: 'long', span: 2 }
+      ]
+    },
+    {
+      id: 'lore',
+      icon: '🔥',
+      title: '내력',
+      cols: 2,
+      accent: true,
+      fields: [
+        { key: 'origin', label: '누가 만들었나 · 어디서 왔나', type: 'long', span: 2 },
+        { key: 'owners', label: '거쳐 간 주인', type: 'list' },
+        { key: 'curse', label: '대가 · 저주 · 조건', type: 'long' }
+      ]
+    }
+  ]
+};
+
+const SKILLS: SheetSchema = {
+  scope: 'skills',
+  icon: '✨',
+  title: '스킬 시트',
+  subtitle: '분류 / 수치 / 원리',
+  dataRoot: 'root',
+  sections: [
+    {
+      id: 'basic',
+      icon: '',
+      title: '',
+      cols: 4,
+      fields: [
+        {
+          key: 'type', label: '타입', type: 'select',
+          options: [
+            { value: 'active', label: '⚔️ 액티브' },
+            { value: 'passive', label: '🛡️ 패시브' },
+            { value: 'ultimate', label: '👑 궁극기 / 고유기' }
+          ]
+        },
+        { key: 'cost', label: '자원 소모', type: 'text' },
+        { key: 'cooldown', label: '쿨타임', type: 'text' },
+        { key: 'range', label: '사거리', type: 'text' }
+      ]
+    },
+    {
+      id: 'spec',
+      icon: '🔧',
+      title: '상세',
+      cols: 2,
+      fields: [
+        { key: 'area', label: '범위 형태', type: 'text' },
+        { key: 'conditions', label: '습득 조건', type: 'text' },
+        { key: 'effects', label: '효과 및 상세 설명', type: 'long', span: 2 }
+      ]
+    },
+    {
+      id: 'lore',
+      icon: '🔥',
+      title: '원리 · 대가',
+      cols: 2,
+      accent: true,
+      fields: [
+        { key: 'principle', label: '어떤 원리로 작동하는가', type: 'long', span: 2 },
+        { key: 'cost_real', label: '치르는 대가', type: 'long' },
+        { key: 'users', label: '쓸 수 있는 자', type: 'list' }
+      ]
+    }
+  ]
+};
+
+const QUESTS: SheetSchema = {
+  scope: 'quests',
+  icon: '📜',
+  title: '퀘스트 시트',
+  subtitle: '의뢰 / 목표 / 보상',
+  dataRoot: 'root',
+  sections: [
+    {
+      id: 'basic',
+      icon: '',
+      title: '',
+      cols: 4,
+      fields: [
+        {
+          key: 'status', label: '진행 상태', type: 'select',
+          options: [
+            { value: 'not_started', label: '⚪ 시작 전' },
+            { value: 'in_progress', label: '🔵 진행 중' },
+            { value: 'completed', label: '🟢 완료' },
+            { value: 'failed', label: '🔴 실패' }
+          ]
+        },
+        { key: 'client', label: '의뢰인', type: 'text' },
+        { key: 'location', label: '수행 장소', type: 'text' },
+        { key: 'deadline', label: '기한', type: 'text' }
+      ]
+    },
+    {
+      id: 'goal',
+      icon: '🎯',
+      title: '목표',
+      cols: 2,
+      fields: [
+        { key: 'goal', label: '목표 · 승리 조건', type: 'long', span: 2 },
+        { key: 'steps', label: '단계', type: 'list', span: 2 }
+      ]
+    },
+    {
+      id: 'reward',
+      icon: '💰',
+      title: '보상',
+      cols: 2,
+      fields: [
+        { key: 'reward_gold', label: '보상 (Gold)', type: 'number' },
+        { key: 'reward_exp', label: '보상 (EXP)', type: 'number' },
+        { key: 'reward_items', label: '보상 아이템', type: 'list', span: 2 }
+      ]
+    },
+    {
+      id: 'twist',
+      icon: '🔥',
+      title: '함정',
+      cols: 2,
+      accent: true,
+      fields: [
+        { key: 'twist', label: '의뢰인이 말하지 않은 것', type: 'long', span: 2 },
+        { key: 'fail_cost', label: '실패하면 벌어지는 일', type: 'long', span: 2 }
+      ]
+    }
+  ]
+};
+
+const STORYLINES: SheetSchema = {
+  scope: 'storylines',
+  icon: '📖',
+  title: '스토리 라인 시트',
+  subtitle: '전제 / 인물 / 갈등 / 결말',
+  dataRoot: 'root',
+  sections: [
+    {
+      id: 'basic',
+      icon: '',
+      title: '',
+      cols: 4,
+      fields: [
+        {
+          key: 'status', label: '상태', type: 'select',
+          options: [
+            { value: 'planning', label: '💭 구상 중' },
+            { value: 'ongoing', label: '✍️ 진행 중' },
+            { value: 'paused', label: '⏸️ 보류' },
+            { value: 'done', label: '✅ 완결' }
+          ]
+        },
+        { key: 'genre', label: '장르 · 분위기', type: 'text' },
+        { key: 'period', label: '작중 시기', type: 'text' },
+        { key: 'length', label: '분량 · 화수', type: 'text' }
+      ]
+    },
+    {
+      id: 'premise',
+      icon: '🎬',
+      title: '전제',
+      cols: 1,
+      fields: [
+        { key: 'logline', label: '한 줄 요약 (로그라인)', type: 'long', placeholder: '누가, 무엇을 원해서, 무엇에 막히는가' }
+      ]
+    },
+    {
+      id: 'cast',
+      icon: '👥',
+      title: '인물',
+      cols: 2,
+      fields: [
+        { key: 'protagonists', label: '주요 인물', type: 'list' },
+        { key: 'stakes', label: '무엇이 걸려 있는가', type: 'long' }
+      ]
+    },
+    {
+      id: 'arc',
+      icon: '🔥',
+      title: '갈등 · 결말',
+      cols: 2,
+      accent: true,
+      fields: [
+        { key: 'conflict', label: '핵심 갈등', type: 'long', span: 2 },
+        { key: 'turns', label: '전환점', type: 'list' },
+        { key: 'ending', label: '🔒 예정된 결말', type: 'long' }
+      ]
+    }
+  ]
+};
+
 export const SHEET_SCHEMAS: SheetSchema[] = [
   CHARACTERS,
   NATIONS,
   RACES,
   GROUPS,
-  LOCATIONS
+  LOCATIONS,
+  EVENTS,
+  ITEMS,
+  SKILLS,
+  QUESTS,
+  STORYLINES
 ];
 
 export function schemaFor(scope: string | undefined): SheetSchema | null {
@@ -454,7 +787,11 @@ export function ensureShape(root: any, schema: SheetSchema): void {
   for (const sec of schema.sections) {
     for (const f of sec.fields) {
       const v = getPath(root, f.key);
-      if (v === undefined) setPath(root, f.key, f.type === 'list' ? [] : '');
+      if (v === undefined) {
+        if (f.type === 'list') setPath(root, f.key, []);
+        else if (f.type === 'select') setPath(root, f.key, f.options?.[0]?.value ?? '');
+        else setPath(root, f.key, '');
+      }
     }
   }
 }
