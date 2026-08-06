@@ -1,4 +1,6 @@
 <script lang="ts">
+  import SaveIndicator from '$lib/components/edit/SaveIndicator.svelte';
+
   export let icon: string | undefined;
   export let title: string;
   export let subtitle: string | undefined;
@@ -34,15 +36,19 @@
       </div>
     </div>
 
-    <button
-      type="button"
-      class="px-4 py-2 text-sm rounded-xl bg-indigo-500 text-white
-             hover:bg-indigo-600 active:bg-indigo-700 disabled:opacity-60 transition"
-      on:click={onPrimary}
-      disabled={primaryDisabled}
-    >
-      {primaryText}
-    </button>
+    <div class="flex items-center gap-2 shrink-0">
+      <SaveIndicator />
+
+      <button
+        type="button"
+        class="px-4 py-2 text-sm rounded-xl bg-indigo-500 text-white
+               hover:bg-indigo-600 active:bg-indigo-700 disabled:opacity-60 transition"
+        on:click={onPrimary}
+        disabled={primaryDisabled}
+      >
+        {primaryText}
+      </button>
+    </div>
   </header>
 
   {#if saveMessage}

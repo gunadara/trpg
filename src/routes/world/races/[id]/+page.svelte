@@ -3,10 +3,15 @@
   import type { WorldDoc } from '$lib/domain/docs';
   import type { CategoryId } from '$lib/domain/categories';
   import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
+  import { goto, beforeNavigate } from '$app/navigation';
+  import { onDestroy } from 'svelte';
+  import { queueSave, flushSave } from '$lib/services/autosave';
   import { browser } from '$app/environment';
   import DocEditLayout from '$lib/components/edit/DocEditLayout.svelte';
   import DetailSwitcher from '$lib/features/world/details/DetailSwitcher.svelte';
+  import ProfileSheet from '$lib/features/world/details/ProfileSheet.svelte';
+  import BlockEditor from '$lib/features/world/details/BlockEditor.svelte';
+  import { schemaFor } from '$lib/domain/sheetSchemas';
   import RelationsPanel from '$lib/features/world/details/RelationsPanel.svelte';
 
 
@@ -24,6 +29,21 @@
 
   const CATEGORY: CategoryId = 'races';
   const META = CATEGORY_META[CATEGORY];
+  const SHEET_SCHEMA = schemaFor(CATEGORY);
+
+  // ── 시트 선택 (프로필 / 전용 / 자유 블록) — 데이터는 각자 보관 ──
+  let activeSheet: 'profile' | 'detail' | 'blocks' = 'profile';
+  $: if (selectedDoc) {
+    activeSheet =
+      ((selectedDoc.attributes as any)?.activeSheet as 'profile' | 'detail' | 'blocks') ?? 'profile';
+  }
+  function setSheet(mode: 'profile' | 'detail' | 'blocks') {
+    if (!selectedDoc) return;
+    if (!selectedDoc.attributes) selectedDoc.attributes = {};
+    (selectedDoc.attributes as any).activeSheet = mode;
+    activeSheet = mode;
+    saveDoc(selectedDoc);
+  }
 
   // 현재 문서
   $: docId = $page.params.id;
@@ -35,10 +55,14 @@
     goto('/world/races');
   }
 
-  // 변경사항 저장
+  // 변경사항 저장 (디바운스 자동저장 — 상태는 SaveIndicator가 표시)
   $: if (browser && selectedDoc) {
-    saveDoc(selectedDoc);
+    queueSave(selectedDoc);
   }
+
+  // 화면을 떠나기 전에 밀린 저장을 확정
+  beforeNavigate(flushSave);
+  onDestroy(flushSave);
 
   // 언급/백링크
     $: mentionedDocs = selectedDoc
@@ -237,7 +261,7 @@ async function handleThumbnailChange(event: Event) {
   title="종족 문서 편집"
   subtitle="문서를 편집합니다."
   onBack={backToList}
-  primaryText={isSaving ? '저장 중...' : '저장(DB)'}
+  primaryText={isSaving ? '백업 중...' : 'DB 백업'}
   primaryDisabled={isSaving}
   onPrimary={handleSaveToDatabase}
   saveMessage={saveMessage}
@@ -311,10 +335,42 @@ async function handleThumbnailChange(event: Event) {
 
       <!-- ✅ [NEW] 2. 스킬 상세 설정 UI (여기에 추가됨!) -->
       <!-- 제목/요약(위)과 본문(아래) 사이 -->
-      <DetailSwitcher 
-        category={CATEGORY} 
-        bind:data={selectedDoc.attributes} 
-      />
+      <!-- 시트 영역: 프로필 / 전용 / 자유 블록 (데이터는 각자 보관) -->
+      <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden mb-6">
+        <div class="flex items-center gap-1 px-2 py-1.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 flex-wrap">
+          <span class="text-xs font-bold text-slate-500 dark:text-slate-400 me-1">시트</span>
+          {#if SHEET_SCHEMA}
+            <button type="button" on:click={() => setSheet('profile')}
+              class="px-2.5 py-1 rounded-lg text-xs font-medium transition
+                     {activeSheet === 'profile' ? 'bg-indigo-500 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}">
+              📖 프로필 시트
+            </button>
+          {/if}
+          <button type="button" on:click={() => setSheet('detail')}
+            class="px-2.5 py-1 rounded-lg text-xs font-medium transition
+                   {activeSheet === 'detail' ? 'bg-indigo-500 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}">
+            🗂 기본 시트
+          </button>
+          <button type="button" on:click={() => setSheet('blocks')}
+            class="px-2.5 py-1 rounded-lg text-xs font-medium transition
+                   {activeSheet === 'blocks' ? 'bg-indigo-500 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}">
+            🧩 자유 시트
+          </button>
+        </div>
+
+        <div class="p-2">
+          {#if activeSheet === 'profile' && SHEET_SCHEMA}
+            <ProfileSheet bind:value={selectedDoc.attributes} schema={SHEET_SCHEMA} />
+          {:else if activeSheet === 'blocks'}
+            <BlockEditor doc={selectedDoc} on:change={() => saveDoc(selectedDoc)} />
+          {:else}
+            <DetailSwitcher
+              category={CATEGORY}
+              bind:data={selectedDoc.attributes}
+            />
+          {/if}
+        </div>
+      </div>
 
       <!-- 본문 -->
       <div class="flex-1 flex flex-col gap-2">

@@ -6,8 +6,13 @@
     GRID_COLS, ROW_PX, BLOCK_LABELS, BLOCK_HINTS, BLOCK_EXAMPLES, GAUGE_COLORS
   } from '$lib/domain/blocks';
 
+  import { type SheetPreset, presetsFor } from '$lib/domain/sheetPresets';
+
   export let doc: WorldDoc;
   const dispatch = createEventDispatcher();
+
+  // 이 문서의 카테고리에 맞는 서식 목록
+  $: availablePresets = presetsFor(doc?.category);
 
   if (!doc.attributes) doc.attributes = {};
   let blocks: Block[] = getBlocks(doc.attributes);
@@ -45,6 +50,38 @@
     addMenu = false;
     commit();
   }
+  // ── 서식(프리셋) 깔기 ──
+  let presetMenu = false;
+
+  function applyPreset(preset: SheetPreset) {
+    // 이미 쓴 게 있으면 지우지 않고 아래에 이어 붙인다
+    const offsetY = blocks.length > 0 ? bottomOf(blocks) + 1 : 0;
+
+    if (blocks.length > 0 && !confirm(`기존 블록 아래에 "${preset.name}" 서식을 추가할까요?`)) {
+      presetMenu = false;
+      return;
+    }
+
+    const added: Block[] = preset.blocks.map((p) => {
+      const nb = makeBlock(p.type, p.y + offsetY);
+      nb.title = p.title;
+      nb.x = p.x;
+      nb.y = p.y + offsetY;
+      nb.w = p.w;
+      nb.h = p.h;
+      if (p.type === 'list') nb.items = [...(p.items ?? [])];
+      if (p.type === 'gauge' && p.rows) {
+        nb.rows = p.rows.map((r, i) => ({ ...r, color: GAUGE_COLORS[i % GAUGE_COLORS.length] }));
+      }
+      return nb;
+    });
+
+    blocks = [...blocks, ...added];
+    presetMenu = false;
+    addMenu = false;
+    commit();
+  }
+
   function removeBlock(id: string) {
     if (!confirm('이 블록을 삭제할까요?')) return;
     blocks = blocks.filter((b) => b.id !== id);
@@ -232,7 +269,11 @@
           <button type="button" on:click={compact}
             class="text-xs px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-indigo-400" title="겹침/빈틈 정리">⤴ 정렬</button>
         {/if}
-        <button type="button" on:click={() => (addMenu = !addMenu)}
+        {#if availablePresets.length > 0}
+          <button type="button" on:click={() => { presetMenu = !presetMenu; addMenu = false; }}
+            class="text-xs px-2.5 py-1 rounded-lg border border-indigo-300 dark:border-indigo-700 text-indigo-500 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">📋 서식</button>
+        {/if}
+        <button type="button" on:click={() => { addMenu = !addMenu; presetMenu = false; }}
           class="text-xs px-2.5 py-1 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-indigo-400 hover:text-indigo-500">+ 블록 추가</button>
       </div>
     {/if}
@@ -251,9 +292,29 @@
     </div>
   {/if}
 
+  <!-- 서식 메뉴 -->
+  {#if presetMenu && !selectMode}
+    <div class="mb-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5 p-2 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/10">
+      {#each availablePresets as p (p.id)}
+        <button type="button" on:click={() => applyPreset(p)}
+          class="text-left px-2.5 py-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition">
+          <span class="text-xs font-bold text-slate-700 dark:text-slate-200">{p.name}</span>
+          <span class="block text-[10px] text-slate-400 dark:text-slate-500">{p.hint} · 칸 {p.blocks.length}개</span>
+        </button>
+      {/each}
+      <p class="col-span-full text-[10px] text-slate-400 dark:text-slate-500 px-2.5 pt-0.5">
+        칸이 미리 짜인 채로 깔립니다. 필요 없는 칸은 지우고, 위치는 끌어서 바꾸면 돼요.
+      </p>
+    </div>
+  {/if}
+
   {#if blocks.length === 0}
     <p class="text-xs text-slate-400 dark:text-slate-500 py-6 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
-      "+ 블록 추가"로 항목을 만들어 자유롭게 배치해 보세요.
+      {#if availablePresets.length > 0}
+        "📋 서식"으로 짜인 시트를 깔거나, "+ 블록 추가"로 직접 만들어 보세요.
+      {:else}
+        "+ 블록 추가"로 항목을 만들어 자유롭게 배치해 보세요.
+      {/if}
     </p>
   {:else}
     <div

@@ -2,7 +2,9 @@
   import type { WorldDoc } from '$lib/domain/docs';
   import type { CategoryId } from '$lib/domain/categories';
   import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
+  import { goto, beforeNavigate } from '$app/navigation';
+  import { onDestroy } from 'svelte';
+  import { queueSave, flushSave } from '$lib/services/autosave';
   import { browser } from '$app/environment';
   import DocEditLayout from '$lib/components/edit/DocEditLayout.svelte';
   import DetailSwitcher from '$lib/features/world/details/DetailSwitcher.svelte';
@@ -34,10 +36,14 @@
     goto('/world/events');
   }
 
-  // 변경사항 저장
+  // 변경사항 저장 (디바운스 자동저장 — 상태는 SaveIndicator가 표시)
   $: if (browser && selectedDoc) {
-    saveDoc(selectedDoc);
+    queueSave(selectedDoc);
   }
+
+  // 화면을 떠나기 전에 밀린 저장을 확정
+  beforeNavigate(flushSave);
+  onDestroy(flushSave);
 
   // 언급/백링크
     $: mentionedDocs =
@@ -237,7 +243,7 @@ async function handleThumbnailChange(event: Event) {
   title="사건 편집"
   subtitle="문서를 편집합니다."
   onBack={backToList}
-  primaryText={isSaving ? '저장 중...' : '저장(DB)'}
+  primaryText={isSaving ? '백업 중...' : 'DB 백업'}
   primaryDisabled={isSaving}
   onPrimary={handleSaveToDatabase}
   saveMessage={saveMessage}

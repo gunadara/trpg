@@ -1,7 +1,9 @@
 <!-- src/lib/features/world/details/generic/GenericDocEditor.svelte -->
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { onDestroy, onMount } from 'svelte';
+  import { beforeNavigate, goto } from '$app/navigation';
+
+  import { queueSave, flushSave } from '$lib/services/autosave';
 
   import DocEditLayout from '$lib/components/edit/DocEditLayout.svelte';
 
@@ -39,7 +41,23 @@
 
   function markDirty() {
     dirty = true;
+    scheduleSave();
   }
+
+  // 다른 화면과 동일하게 자동저장으로 통일 (수동 저장 버튼 폐기)
+  function scheduleSave() {
+    if (!doc) return;
+    queueSave({
+      ...doc,
+      title: titleDraft.trim() || doc.title,
+      summary: summaryDraft,
+      content: contentDraft,
+      attributes: values
+    });
+  }
+
+  beforeNavigate(flushSave);
+  onDestroy(flushSave);
 
   function onFieldChange(e: CustomEvent<{ key: string; value: any }>) {
     values = { ...values, [e.detail.key]: e.detail.value };
@@ -106,10 +124,10 @@
     title={titleDraft || '제목 없음'}
     subtitle={`카테고리: ${categoryId}`}
     onBack={onBack}
-    primaryText="저장"
-    primaryDisabled={!dirty}
+    primaryText="지금 저장"
+    primaryDisabled={false}
     onPrimary={save}
-    saveMessage={dirty ? '변경사항이 있습니다. 저장 버튼을 눌러 반영하세요.' : '저장됨'}
+    saveMessage={undefined}
   >
     <div class="flex flex-col gap-4">
       <!-- 제목 -->

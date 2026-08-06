@@ -2,12 +2,16 @@
   import type { WorldDoc } from '$lib/domain/docs';
   import type { CategoryId } from '$lib/domain/categories';
   import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
+  import { goto, beforeNavigate } from '$app/navigation';
+  import { onDestroy } from 'svelte';
+  import { queueSave, flushSave } from '$lib/services/autosave';
   import { browser } from '$app/environment';
   import DocEditLayout from '$lib/components/edit/DocEditLayout.svelte';
   import DetailSwitcher from '$lib/features/world/details/DetailSwitcher.svelte';
   import RelationsPanel from '$lib/features/world/details/RelationsPanel.svelte';
   import BlockEditor from '$lib/features/world/details/BlockEditor.svelte';
+  import ProfileSheet from '$lib/features/world/details/ProfileSheet.svelte';
+  import { schemaFor } from '$lib/domain/sheetSchemas';
 
 
   import {
@@ -24,6 +28,7 @@
 
   const CATEGORY: CategoryId = 'characters';
   const META = CATEGORY_META[CATEGORY];
+  const SHEET_SCHEMA = schemaFor(CATEGORY);
 
   // 현재 문서
   $: docId = $page.params.id;
@@ -35,17 +40,22 @@
     goto('/world/characters');
   }
 
-  // 변경사항 저장
+  // 변경사항 저장 (디바운스 자동저장 — 상태는 SaveIndicator가 표시)
   $: if (browser && selectedDoc) {
-    saveDoc(selectedDoc);
+    queueSave(selectedDoc);
   }
 
+  // 화면을 떠나기 전에 밀린 저장을 확정
+  beforeNavigate(flushSave);
+  onDestroy(flushSave);
+
   // ── 시트 선택 (TRPG 시트 / 자유 블록 시트) — 데이터는 각자 보관 ──
-  let activeSheet: 'trpg' | 'blocks' = 'trpg';
+  let activeSheet: 'trpg' | 'profile' | 'blocks' = 'profile';
   $: if (selectedDoc) {
-    activeSheet = ((selectedDoc.attributes as any)?.activeSheet as 'trpg' | 'blocks') ?? 'trpg';
+    activeSheet =
+      ((selectedDoc.attributes as any)?.activeSheet as 'trpg' | 'profile' | 'blocks') ?? 'profile';
   }
-  function setSheet(mode: 'trpg' | 'blocks') {
+  function setSheet(mode: 'trpg' | 'profile' | 'blocks') {
     if (!selectedDoc) return;
     if (!selectedDoc.attributes) selectedDoc.attributes = {};
     (selectedDoc.attributes as any).activeSheet = mode;
@@ -250,7 +260,7 @@ async function handleThumbnailChange(event: Event) {
   title="인물 편집"
   subtitle="문서를 편집합니다."
   onBack={backToList}
-  primaryText={isSaving ? '저장 중...' : '저장(DB)'}
+  primaryText={isSaving ? '백업 중...' : 'DB 백업'}
   primaryDisabled={isSaving}
   onPrimary={handleSaveToDatabase}
   saveMessage={saveMessage}
@@ -326,6 +336,11 @@ async function handleThumbnailChange(event: Event) {
       <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
         <div class="flex items-center gap-1 px-2 py-1.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
           <span class="text-xs font-bold text-slate-500 dark:text-slate-400 me-1">시트</span>
+          <button type="button" on:click={() => setSheet('profile')}
+            class="px-2.5 py-1 rounded-lg text-xs font-medium transition
+                   {activeSheet === 'profile' ? 'bg-indigo-500 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}">
+            📖 프로필 시트
+          </button>
           <button type="button" on:click={() => setSheet('trpg')}
             class="px-2.5 py-1 rounded-lg text-xs font-medium transition
                    {activeSheet === 'trpg' ? 'bg-indigo-500 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}">
@@ -344,6 +359,8 @@ async function handleThumbnailChange(event: Event) {
               category={CATEGORY}
               bind:data={selectedDoc.attributes}
             />
+          {:else if activeSheet === 'profile' && SHEET_SCHEMA}
+            <ProfileSheet bind:value={selectedDoc.attributes} schema={SHEET_SCHEMA} />
           {:else}
             <BlockEditor doc={selectedDoc} on:change={() => saveDoc(selectedDoc)} />
           {/if}

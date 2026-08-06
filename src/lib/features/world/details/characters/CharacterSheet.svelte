@@ -80,7 +80,7 @@
   }
 </script>
 
-<section class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-5 space-y-6 relative">
+<section class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3 sm:p-5 space-y-5 sm:space-y-6 relative">
   
   <!-- 헤더 -->
   <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
@@ -93,35 +93,35 @@
   </div>
 
   <!-- 1. 기본 프로필 (레벨 / 직업 / 종족 / 성향) -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
     <div>
       <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1 ml-1">Lv.</label>
       <input type="number" bind:value={value.level} class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-center font-bold outline-none focus:border-indigo-500 transition" />
     </div>
     <div>
       <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1 ml-1">직업</label>
-      <input type="text" bind:value={value.class} class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none focus:border-indigo-500 transition" />
+      <input type="text" bind:value={value.class} class="w-full min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none focus:border-indigo-500 transition" />
     </div>
     <div>
       <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1 ml-1">종족</label>
-      <input type="text" bind:value={value.race} class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none focus:border-indigo-500 transition" />
+      <input type="text" bind:value={value.race} class="w-full min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none focus:border-indigo-500 transition" />
     </div>
     <div>
       <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1 ml-1">성향</label>
-      <input type="text" bind:value={value.alignment} class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none focus:border-indigo-500 transition" />
+      <input type="text" bind:value={value.alignment} class="w-full min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none focus:border-indigo-500 transition" />
     </div>
   </div>
 
   <!-- 2. 바이탈 게이지 (HP / MP) -->
-  <div class="bg-white/50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700/50 space-y-4">
+  <div class="bg-white/50 dark:bg-slate-800/50 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-700/50 space-y-4">
     <!-- HP -->
     <div>
       <div class="flex justify-between items-end mb-1 px-1">
         <label class="text-xs font-bold text-red-500">❤️ HP</label>
         <div class="flex items-center gap-1 text-xs">
-          <input type="number" bind:value={value.hp.current} class="w-12 text-right bg-transparent border-b border-slate-300 dark:border-slate-600 focus:border-red-500 outline-none font-bold" />
+          <input type="number" bind:value={value.hp.current} class="w-10 sm:w-12 shrink-0 text-right bg-transparent border-b border-slate-300 dark:border-slate-600 focus:border-red-500 outline-none font-bold" />
           <span class="text-slate-400">/</span>
-          <input type="number" bind:value={value.hp.max} class="w-12 bg-transparent border-b border-slate-300 dark:border-slate-600 focus:border-red-500 outline-none" />
+          <input type="number" bind:value={value.hp.max} class="w-10 sm:w-12 shrink-0 bg-transparent border-b border-slate-300 dark:border-slate-600 focus:border-red-500 outline-none" />
         </div>
       </div>
       <div class="w-full h-2.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
@@ -133,9 +133,9 @@
       <div class="flex justify-between items-end mb-1 px-1">
         <label class="text-xs font-bold text-blue-500">💧 MP</label>
         <div class="flex items-center gap-1 text-xs">
-          <input type="number" bind:value={value.mp.current} class="w-12 text-right bg-transparent border-b border-slate-300 dark:border-slate-600 focus:border-blue-500 outline-none font-bold" />
+          <input type="number" bind:value={value.mp.current} class="w-10 sm:w-12 shrink-0 text-right bg-transparent border-b border-slate-300 dark:border-slate-600 focus:border-blue-500 outline-none font-bold" />
           <span class="text-slate-400">/</span>
-          <input type="number" bind:value={value.mp.max} class="w-12 bg-transparent border-b border-slate-300 dark:border-slate-600 focus:border-blue-500 outline-none" />
+          <input type="number" bind:value={value.mp.max} class="w-10 sm:w-12 shrink-0 bg-transparent border-b border-slate-300 dark:border-slate-600 focus:border-blue-500 outline-none" />
         </div>
       </div>
       <div class="w-full h-2.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
@@ -147,11 +147,11 @@
   <!-- 3. 스탯 그리드 -->
   <div>
     <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 ml-1">능력치 (Stats)</label>
-    <div class="grid grid-cols-3 md:grid-cols-6 gap-2">
+    <div class="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2">
       {#each Object.keys(value.stats) as stat}
         <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 flex flex-col items-center">
           <span class="text-[10px] text-slate-400 uppercase font-bold">{stat}</span>
-          <input type="number" bind:value={value.stats[stat]} class="w-full text-center bg-transparent font-bold text-lg outline-none text-slate-800 dark:text-slate-100" />
+          <input type="number" bind:value={value.stats[stat]} class="w-full min-w-0 text-center bg-transparent font-bold text-base sm:text-lg outline-none text-slate-800 dark:text-slate-100" />
         </div>
       {/each}
     </div>
@@ -181,7 +181,7 @@
             type="text" 
             bind:value={item.name} 
             placeholder="아이템 이름" 
-            class="flex-1 bg-transparent text-sm outline-none"
+            class="flex-1 min-w-0 bg-transparent text-sm outline-none"
           />
           
           <!-- 수량 -->
@@ -231,7 +231,7 @@
             type="text" 
             bind:value={skill.name} 
             placeholder="스킬 이름" 
-            class="flex-1 bg-transparent text-sm outline-none"
+            class="flex-1 min-w-0 bg-transparent text-sm outline-none"
           />
           <button 
             type="button" 
@@ -276,9 +276,9 @@
             class="w-full text-left px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 hover:border-indigo-500 transition flex items-center gap-2"
             on:click={() => selectItem(item)}
           >
-            <span class="text-lg">{searchTarget === 'inventory' ? '📦' : '📜'}</span>
-            <div>
-              <div class="text-sm font-bold text-slate-700 dark:text-slate-200">{item.title}</div>
+            <span class="text-lg shrink-0">{searchTarget === 'inventory' ? '📦' : '📜'}</span>
+            <div class="min-w-0">
+              <div class="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{item.title}</div>
               {#if item.summary}
                 <div class="text-[10px] text-slate-400 line-clamp-1">{item.summary}</div>
               {/if}
