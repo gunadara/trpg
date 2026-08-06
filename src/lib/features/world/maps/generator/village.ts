@@ -1,7 +1,7 @@
 // 마을 지도 생성기 — 길을 먼저 깔고, 길가에 건물을 배치한다.
 // 지형 생성기(terrain.ts)와 독립. 양피지 렌더 스타일은 공유 느낌으로 자체 정의.
 
-export type SettlementKind = 'hamlet' | 'village' | 'town' | 'citadel';
+export type SettlementKind = 'hamlet' | 'village' | 'town' | 'citadel' | 'capital' | 'fort';
 export type VillageBiome = 'grass' | 'forest' | 'desert' | 'tundra' | 'marsh' | 'coast';
 
 export type VillageOptions = {
@@ -29,11 +29,40 @@ const BIOME_STYLE: Record<string, {
 
 /** 취락 유형별 구조 프리셋 */
 const SETTLEMENT = {
-  hamlet:  { roads: 1, branchMax: 1, slotMain: 10, slotBranch: 5,  plaza: false, fields: 9, wall: false, label: '촌락' },
-  village: { roads: 1, branchMax: 3, slotMain: 20, slotBranch: 10, plaza: true,  fields: 7, wall: false, label: '마을' },
-  town:    { roads: 2, branchMax: 5, slotMain: 26, slotBranch: 14, plaza: true,  fields: 4, wall: false, label: '읍' },
-  citadel: { roads: 2, branchMax: 6, slotMain: 30, slotBranch: 16, plaza: true,  fields: 2, wall: true,  label: '성채도시' }
+  hamlet:  { roads: 1, branchMax: 1, slotMain: 10, slotBranch: 5,  plaza: false, fields: 9, wall: false, label: '촌락',
+             landmarks: [] as LandmarkKind[] },
+  village: { roads: 1, branchMax: 3, slotMain: 20, slotBranch: 10, plaza: true,  fields: 7, wall: false, label: '마을',
+             landmarks: ['hall'] as LandmarkKind[] },
+  town:    { roads: 2, branchMax: 5, slotMain: 26, slotBranch: 14, plaza: true,  fields: 4, wall: false, label: '읍',
+             landmarks: ['hall', 'market'] as LandmarkKind[] },
+  citadel: { roads: 2, branchMax: 6, slotMain: 30, slotBranch: 16, plaza: true,  fields: 2, wall: true,  label: '성채도시',
+             landmarks: ['castle', 'hall', 'market'] as LandmarkKind[] },
+  capital: { roads: 3, branchMax: 7, slotMain: 34, slotBranch: 18, plaza: true,  fields: 1, wall: true,  label: '수도',
+             landmarks: ['palace', 'hall', 'market', 'cathedral'] as LandmarkKind[] },
+  fort:    { roads: 1, branchMax: 2, slotMain: 12, slotBranch: 6,  plaza: true,  fields: 1, wall: true,  label: '요새',
+             landmarks: ['keep', 'barracks', 'barracks', 'watchtower', 'watchtower'] as LandmarkKind[] }
 } as const;
+
+export type LandmarkKind = 'castle' | 'palace' | 'keep' | 'hall' | 'market' | 'cathedral' | 'barracks' | 'watchtower';
+
+export type Landmark = {
+  id: string;
+  kind: LandmarkKind;
+  x: number; y: number; w: number; h: number; angle: number;
+  name: string;
+};
+
+/** 랜드마크 규격: 크기(px)와 이름 */
+const LANDMARK_META: Record<LandmarkKind, { w: number; h: number; label: string; prio: number }> = {
+  castle:     { w: 130, h: 100, label: '성',     prio: 10 },
+  palace:     { w: 150, h: 110, label: '왕궁',   prio: 10 },
+  keep:       { w: 90,  h: 90,  label: '주둔성', prio: 10 },
+  cathedral:  { w: 90,  h: 120, label: '대성당', prio: 8 },
+  hall:       { w: 80,  h: 60,  label: '관청',   prio: 6 },
+  market:     { w: 95,  h: 70,  label: '시장',   prio: 5 },
+  barracks:   { w: 90,  h: 45,  label: '병영',   prio: 4 },
+  watchtower: { w: 34,  h: 34,  label: '망루',   prio: 3 }
+};
 
 export type Road = { pts: [number, number][]; w: number; kind: 'main' | 'branch' | 'path' };
 export type Building = {
@@ -53,6 +82,7 @@ export type Village = {
   river: [number, number][] | null;
   wall: [number, number][] | null;
   bridges: { x: number; y: number; angle: number; w: number }[];
+  landmarks: Landmark[];
   pier: [number, number][] | null;   // 해안 마을의 선착장
   kind: SettlementKind;
   biome: VillageBiome;
@@ -270,8 +300,6 @@ export function generateVillage(opts: VillageOptions): Village {
     }
   }
 
-  /* 5) 건물: 각 도로를 따라 양옆에 배치 (겹치지 않게) */
-  const buildings: Building[] = [];
   const placed: { x: number; y: number; r: number }[] = [];
   /** 점에서 폴리라인까지 최단거리 */
   const distToPolyline = (x: number, y: number, pts: [number, number][]): number => {
@@ -314,6 +342,58 @@ export function generateVillage(opts: VillageOptions): Village {
     for (const q of placed) if (Math.hypot(x - q.x, y - q.y) < q.r + r + 7) return false;
     return true;
   };
+
+  /* 4.5) 랜드마크: 성·관청·시장 등을 먼저 좋은 자리에 앉힌다 */
+  const landmarks: Landmark[] = [];
+  {
+    const wanted = [...P.landmarks].sort(
+      (a, b) => LANDMARK_META[b].prio - LANDMARK_META[a].prio
+    );
+    for (const kind of wanted) {
+      const m = LANDMARK_META[kind];
+      let placed_ok = false;
+      for (let attempt = 0; attempt < 60; attempt++) {
+        let lx: number, ly: number;
+        if (m.prio >= 10) {
+          // 성·왕궁: 중심에서 살짝 벗어난 높은 자리(가장자리 쪽)
+          const a = rand() * Math.PI * 2;
+          const d = Math.min(width, height) * (0.2 + rand() * 0.16);
+          lx = cx + Math.cos(a) * d;
+          ly = cy + Math.sin(a) * d * 0.8;
+        } else if (kind === 'watchtower') {
+          // 망루: 외곽
+          const a = rand() * Math.PI * 2;
+          const d = Math.min(width, height) * (0.3 + rand() * 0.12);
+          lx = cx + Math.cos(a) * d;
+          ly = cy + Math.sin(a) * d * 0.8;
+        } else {
+          // 관청·시장·병영: 광장이나 큰길 가까이
+          const t = 0.25 + rand() * 0.5;
+          const { p, dir } = onPath(mainPts, t);
+          const side = rand() < 0.5 ? 1 : -1;
+          const off = 40 + rand() * 50;
+          lx = p[0] + -dir[1] * side * off;
+          ly = p[1] + dir[0] * side * off;
+        }
+        const rr = Math.max(m.w, m.h) * 0.55;
+        if (!canPlace(lx, ly, rr)) continue;
+        landmarks.push({
+          id: `L${landmarks.length}`,
+          kind,
+          x: lx, y: ly, w: m.w, h: m.h,
+          angle: (rand() - 0.5) * 12,
+          name: m.label
+        });
+        placed.push({ x: lx, y: ly, r: rr });
+        placed_ok = true;
+        break;
+      }
+      if (!placed_ok) { /* 자리를 못 찾으면 생략 */ }
+    }
+  }
+
+  /* 5) 건물: 각 도로를 따라 양옆에 배치 (겹치지 않게) */
+  const buildings: Building[] = [];
 
   // 특수 건물은 취락당 개수를 제한한다 (대장간 2, 방앗간 1 …)
   const quota: Record<string, number> =
@@ -484,7 +564,7 @@ export function generateVillage(opts: VillageOptions): Village {
     wall = pts;
   }
 
-  return { width, height, roads, buildings, fields, plaza, well, river, wall, bridges, pier, kind, biome, scatter, seed: opts.seed };
+  return { width, height, roads, buildings, fields, plaza, well, river, wall, bridges, pier, landmarks, kind, biome, scatter, seed: opts.seed };
 }
 
 /* ═══════════ 렌더 ═══════════ */
@@ -591,6 +671,95 @@ function buildingGlyph(b: Building): string {
     `<rect x="${-hw}" y="${-hh}" width="${b.w}" height="${b.h}" rx="1.5" fill="${fill}" stroke="${INK}" stroke-width="1.1"/>` +
     inner + cross +
     `</g>`
+  );
+}
+
+/** 랜드마크 글리프: 크고 눈에 띄게, 종류별로 형태가 다름 */
+function landmarkGlyph(L: Landmark): string {
+  const hw = L.w / 2, hh = L.h / 2;
+  const g = (inner: string) =>
+    `<g transform="translate(${L.x.toFixed(1)},${L.y.toFixed(1)}) rotate(${L.angle.toFixed(1)})">${inner}</g>`;
+  const STONE2 = '#b6b1a6';
+  const ROOF = '#8d6f5a';
+  const GOLD = '#c9a94e';
+
+  // 모서리 탑 (성·왕궁·주둔성 공용)
+  const towers = (r: number) =>
+    [[-hw, -hh], [hw, -hh], [-hw, hh], [hw, hh]]
+      .map(([tx, ty]) =>
+        `<circle cx="${tx}" cy="${ty}" r="${r}" fill="${STONE2}" stroke="${INK}" stroke-width="1.6"/>` +
+        `<circle cx="${tx}" cy="${ty}" r="${r * 0.45}" fill="none" stroke="${INK}" stroke-width="0.9" stroke-opacity="0.6"/>`
+      ).join('');
+
+  if (L.kind === 'castle' || L.kind === 'palace' || L.kind === 'keep') {
+    const isPalace = L.kind === 'palace';
+    return g(
+      `<rect x="${-hw}" y="${-hh}" width="${L.w}" height="${L.h}" fill="${STONE2}" stroke="${INK}" stroke-width="2.2"/>` +
+      // 안뜰
+      `<rect x="${-hw * 0.45}" y="${-hh * 0.45}" width="${L.w * 0.45}" height="${L.h * 0.45}" fill="${PAPER}" fill-opacity="0.55" stroke="${INK}" stroke-width="1.2"/>` +
+      towers(L.kind === 'keep' ? 10 : 13) +
+      // 정문
+      `<rect x="${-9}" y="${hh - 4}" width="18" height="8" fill="${ROOF}" stroke="${INK}" stroke-width="1.3"/>` +
+      (isPalace
+        ? `<path d="M0,${-hh * 0.1} l6,10 l-6,10 l-6,-10 Z" fill="${GOLD}" stroke="${INK}" stroke-width="1"/>`
+        : `<rect x="-5" y="${-hh * 0.12}" width="10" height="14" fill="${GOLD}" fill-opacity="0.8" stroke="${INK}" stroke-width="1"/>`)
+    );
+  }
+  if (L.kind === 'cathedral') {
+    return g(
+      `<rect x="${-hw}" y="${-hh}" width="${L.w}" height="${L.h}" fill="#c7bcd0" stroke="${INK}" stroke-width="2"/>` +
+      // 십자 통로
+      `<rect x="${-hw * 1.25}" y="${-hh * 0.18}" width="${L.w * 1.25}" height="${L.h * 0.3}" fill="#c7bcd0" stroke="${INK}" stroke-width="2"/>` +
+      // 제단(원형 후진)
+      `<circle cx="0" cy="${-hh}" r="${hw * 0.55}" fill="#c7bcd0" stroke="${INK}" stroke-width="2"/>` +
+      // 십자
+      `<line x1="0" y1="${-hh - 20}" x2="0" y2="${-hh - 6}" stroke="${INK}" stroke-width="2"/>` +
+      `<line x1="-6" y1="${-hh - 15}" x2="6" y2="${-hh - 15}" stroke="${INK}" stroke-width="2"/>`
+    );
+  }
+  if (L.kind === 'hall') {
+    return g(
+      `<rect x="${-hw}" y="${-hh}" width="${L.w}" height="${L.h}" fill="#d3c3a8" stroke="${INK}" stroke-width="2"/>` +
+      // 계단 현관
+      `<rect x="${-hw * 0.4}" y="${hh - 6}" width="${L.w * 0.4}" height="10" fill="${STONE2}" stroke="${INK}" stroke-width="1.2"/>` +
+      // 기둥
+      [-0.6, -0.2, 0.2, 0.6].map((f) =>
+        `<circle cx="${hw * f}" cy="${hh - 1}" r="3" fill="${PAPER}" stroke="${INK}" stroke-width="1"/>`).join('') +
+      // 지붕 능선
+      `<line x1="${-hw + 4}" y1="0" x2="${hw - 4}" y2="0" stroke="${ROOF}" stroke-width="3"/>` +
+      `<rect x="-4" y="${-hh - 9}" width="8" height="9" fill="${GOLD}" stroke="${INK}" stroke-width="1"/>`
+    );
+  }
+  if (L.kind === 'market') {
+    // 시장: 지붕 있는 매대들
+    let stalls = '';
+    for (let r = 0; r < 2; r++)
+      for (let c = 0; c < 3; c++) {
+        const sxp = -hw + 8 + c * (L.w - 16) / 3;
+        const syp = -hh + 8 + r * (L.h - 16) / 2;
+        stalls += `<rect x="${sxp}" y="${syp}" width="${(L.w - 22) / 3}" height="${(L.h - 22) / 2}" fill="#d8b98a" stroke="${INK}" stroke-width="1.1"/>`;
+      }
+    return g(
+      `<rect x="${-hw}" y="${-hh}" width="${L.w}" height="${L.h}" fill="${PLAZA_FILL}" stroke="${INK}" stroke-width="1.8" stroke-dasharray="5 3"/>` +
+      stalls
+    );
+  }
+  if (L.kind === 'barracks') {
+    return g(
+      `<rect x="${-hw}" y="${-hh}" width="${L.w}" height="${L.h}" fill="#b9ac92" stroke="${INK}" stroke-width="1.8"/>` +
+      [-0.55, -0.18, 0.18, 0.55].map((f) =>
+        `<line x1="${L.w * f}" y1="${-hh + 2}" x2="${L.w * f}" y2="${hh - 2}" stroke="${INK}" stroke-width="0.9" stroke-opacity="0.6"/>`).join('') +
+      `<rect x="-6" y="${hh - 3}" width="12" height="6" fill="${ROOF}" stroke="${INK}" stroke-width="1"/>`
+    );
+  }
+  // watchtower
+  return g(
+    `<circle cx="0" cy="0" r="${hw}" fill="${STONE2}" stroke="${INK}" stroke-width="2"/>` +
+    `<circle cx="0" cy="0" r="${hw * 0.5}" fill="none" stroke="${INK}" stroke-width="1.2"/>` +
+    [0, 90, 180, 270].map((deg) => {
+      const rad = (deg * Math.PI) / 180;
+      return `<rect x="${Math.cos(rad) * hw - 2.5}" y="${Math.sin(rad) * hw - 2.5}" width="5" height="5" fill="${INK}"/>`;
+    }).join('')
   );
 }
 
@@ -718,6 +887,14 @@ export function renderVillageSvg(v: Village, opts: { title?: string } = {}): str
 
   const fieldsEl = v.fields.map(fieldGlyph).join('');
   const bldEl = v.buildings.map(buildingGlyph).join('');
+  const landmarkEl = (v.landmarks ?? []).map(landmarkGlyph).join('');
+  // 랜드마크 이름표
+  const landmarkLabels = (v.landmarks ?? [])
+    .map((L) =>
+      `<text x="${L.x.toFixed(1)}" y="${(L.y + L.h / 2 + 14).toFixed(1)}" text-anchor="middle" ` +
+      `font-family="Georgia, serif" font-size="12" font-weight="bold" fill="${INK}" ` +
+      `paint-order="stroke" stroke="${PAPER}" stroke-width="3" stroke-opacity="0.9">${L.name}</text>`
+    ).join('');
 
   // 좌표 격자 (세션에서 위치 지정용: A1~)
   const COLS = 8, ROWS = 6;
@@ -820,7 +997,9 @@ export function renderVillageSvg(v: Village, opts: { title?: string } = {}): str
     bridgeEl +
     plazaEl +
     fieldsEl +
+    landmarkEl +
     bldEl +
+    landmarkLabels +
     wellEl +
     wallPath +
     `<g pointer-events="none">${grid}</g>` +

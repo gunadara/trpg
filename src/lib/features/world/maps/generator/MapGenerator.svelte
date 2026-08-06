@@ -19,12 +19,14 @@
   let islandLevel = 0.3; // 섬 밀도 0~1
   let wide = false; // 넓은 세계 (1600×1120)
   // 마을 전용
-  let vKind: 'hamlet' | 'village' | 'town' | 'citadel' = 'village'; // 취락 유형
+  let vKind: 'hamlet' | 'village' | 'town' | 'citadel' | 'capital' | 'fort' = 'village';
   const V_KINDS = [
     { v: 'hamlet', label: '촌락' },
     { v: 'village', label: '마을' },
     { v: 'town', label: '읍' },
-    { v: 'citadel', label: '성채' }
+    { v: 'citadel', label: '성채' },
+    { v: 'capital', label: '수도' },
+    { v: 'fort', label: '요새' }
   ] as const;
   let vBiome: 'auto' | 'grass' | 'forest' | 'desert' | 'tundra' | 'marsh' | 'coast' = 'auto';
   const V_BIOMES = [
@@ -188,11 +190,11 @@
 
     {#if mapType === 'village'}
       <!-- 마을 전용 조절 -->
-      <div class="flex gap-1">
+      <div class="grid grid-cols-3 gap-1">
         {#each V_KINDS as k}
           <button
             on:click={() => { vKind = k.v; generate(); }}
-            class="flex-1 py-1 rounded-lg text-[11px] font-bold border transition {vKind === k.v ? 'border-primary text-primary' : 'border-line text-muted'}"
+            class="py-1 rounded-lg text-[11px] font-bold border transition {vKind === k.v ? 'border-primary text-primary bg-primary/10' : 'border-line text-muted'}"
           >{k.label}</button>
         {/each}
       </div>
