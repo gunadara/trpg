@@ -358,12 +358,11 @@
 
     <!-- 지역 뽑기: 미리보기 + 저장 -->
     {#if regionPreview}
-      <div class="absolute inset-0 bg-black/50 flex items-end md:items-center justify-center p-4 z-20 overflow-y-auto"
-           on:click={() => (regionPreview = null)}
-           on:keydown={(e) => e.key === 'Escape' && (regionPreview = null)}
-           role="button" tabindex="-1">
-        <div class="w-full max-w-md rounded-2xl border border-line bg-surface p-5 space-y-3"
-             on:click|stopPropagation role="dialog">
+      <button class="absolute inset-0 bg-black/50 z-20 cursor-default"
+        on:click={() => (regionPreview = null)} aria-label="닫기"></button>
+      <div class="absolute inset-x-0 bottom-0 md:inset-0 z-30 flex items-end md:items-center justify-center md:p-4 pointer-events-none">
+        <div class="w-full max-w-md rounded-t-2xl md:rounded-2xl border border-line bg-surface p-4 md:p-5 space-y-3 max-h-[80dvh] overflow-y-auto pointer-events-auto"
+             role="dialog">
           <h2 class="text-sm font-bold text-ink">🔍 지역 지도 미리보기</h2>
           <div class="rounded-xl overflow-hidden border border-line bg-canvas">
             <img src={regionPreview.url} alt="지역 지도 미리보기" class="w-full block" />
@@ -387,11 +386,15 @@
 
     <!-- 지도 생성기 -->
     {#if showGenerator}
-      <div class="absolute inset-0 bg-black/50 flex items-end md:items-center justify-center p-4 z-20 overflow-y-auto"
-           on:click={() => (showGenerator = false)}
-           on:keydown={(e) => e.key === 'Escape' && (showGenerator = false)}
-           role="button" tabindex="-1">
-        <div on:click|stopPropagation role="dialog" class="w-full flex justify-center">
+      <!-- 배경(눌러서 닫기) -->
+      <button
+        class="absolute inset-0 bg-black/40 z-20 cursor-default"
+        on:click={() => (showGenerator = false)}
+        aria-label="닫기"
+      ></button>
+      <!-- 시트: 배경과 형제라 터치·스크롤이 온전히 전달됨 -->
+      <div class="absolute inset-x-0 bottom-0 md:inset-0 z-30 flex items-end md:items-center justify-center md:p-4 pointer-events-none">
+        <div class="w-full max-w-md pointer-events-auto">
           <MapGenerator initialType={genInitialType} onSaved={handleGeneratedSaved} onClose={() => (showGenerator = false)} />
         </div>
       </div>
@@ -399,12 +402,11 @@
 
     <!-- 핀 연결 다이얼로그 -->
     {#if pendingPin}
-      <div class="absolute inset-0 bg-black/50 flex items-end md:items-center justify-center p-4 z-20"
-           on:click={() => (pendingPin = null)}
-           on:keydown={(e) => e.key === 'Escape' && (pendingPin = null)}
-           role="button" tabindex="-1">
-        <div class="w-full max-w-sm rounded-2xl border border-line bg-surface p-5 space-y-3"
-             on:click|stopPropagation role="dialog">
+      <button class="absolute inset-0 bg-black/50 z-20 cursor-default"
+        on:click={() => (pendingPin = null)} aria-label="닫기"></button>
+      <div class="absolute inset-x-0 bottom-0 md:inset-0 z-30 flex items-end md:items-center justify-center md:p-4 pointer-events-none">
+        <div class="w-full max-w-sm rounded-t-2xl md:rounded-2xl border border-line bg-surface p-4 md:p-5 space-y-3 max-h-[80dvh] overflow-y-auto pointer-events-auto"
+             role="dialog">
           <h2 class="text-sm font-bold text-ink">📍 새 핀</h2>
 
           <!-- 문서 검색 연결 -->

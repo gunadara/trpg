@@ -13,6 +13,7 @@ import { CATEGORY_ROUTE } from '$lib/services/worldNav';
 import DrawHelper from '$lib/features/draw/DrawHelper.svelte';
 import ThemeToggle from '$lib/components/layout/ThemeToggle.svelte';
 import '$lib/stores/theme'; // 테마 초기화(.dark 클래스 적용) 트리거
+import { autoCheckOnStart } from '$lib/services/appUpdate';
 
   type NavItem = {
     icon: string;
@@ -45,6 +46,8 @@ const WORLD_ITEMS: NavItem[] = WORLD_CATEGORY_IDS.map((id) => ({
   onMount(() => {
     // 테마는 theme 스토어가 관리(.dark 클래스 + localStorage). import만으로 초기 적용됨.
     initWorldDatabase().catch((err) => console.error('[SQLite] init error', err));
+    // 앱 업데이트 확인 (조용히, 다음 실행에 적용)
+    autoCheckOnStart();
   });
 </script>
 

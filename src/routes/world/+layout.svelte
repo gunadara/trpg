@@ -15,6 +15,7 @@
   import { hydrateCurrentWorldFromSQLite } from '$lib/stores/docStore';
   import DrawHelper from '$lib/features/draw/DrawHelper.svelte';
   import ThemeToggle from '$lib/components/layout/ThemeToggle.svelte';
+  import UpdateButton from '$lib/components/layout/UpdateButton.svelte';
 
   // 사이드바 접기/펴기
   let sidebarCollapsed = false;
@@ -240,6 +241,10 @@
               </button>
             </li>
           {/each}
+        <!-- 업데이트 확인 -->
+        <li class="pt-2 mt-2 border-t border-slate-200 dark:border-slate-800 px-1">
+          <UpdateButton compact />
+        </li>
         <!-- ✅ 디버그 버튼: Drawer 안에 -->
         <li class="pt-2 mt-2 border-t border-slate-200 dark:border-slate-800">
           <button

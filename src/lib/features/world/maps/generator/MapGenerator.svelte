@@ -138,17 +138,18 @@
   generate();
 </script>
 
-<div class="w-full max-w-md rounded-2xl border border-line bg-surface p-5 space-y-4">
-  <div class="flex items-center justify-between">
-    <h2 class="text-sm font-bold text-ink">🌍 지도 생성</h2>
-    <button class="text-xs text-muted hover:text-ink" on:click={onClose}>닫기</button>
-  </div>
-
-  <!-- 미리보기 -->
-  <div class="rounded-xl overflow-hidden border border-line bg-canvas">
-    {#if previewUrl}
-      <img src={previewUrl} alt="생성된 지도 미리보기" class="w-full block" />
-    {/if}
+<div class="w-full max-w-md rounded-t-2xl md:rounded-2xl border border-line bg-surface p-4 md:p-5 space-y-3 md:space-y-4 max-h-[72dvh] md:max-h-[86dvh] overflow-y-auto overscroll-contain" style="touch-action: pan-y; -webkit-overflow-scrolling: touch;">
+  <!-- 헤더 + 미리보기: 스크롤해도 항상 보이게 고정 -->
+  <div class="sticky -top-4 md:-top-5 -mx-4 md:-mx-5 -mt-4 md:-mt-5 px-4 md:px-5 pt-4 md:pt-5 pb-3 bg-surface z-10 space-y-3">
+    <div class="flex items-center justify-between">
+      <h2 class="text-sm font-bold text-ink">🌍 지도 생성</h2>
+      <button class="text-xs text-muted hover:text-ink px-2 py-1" on:click={onClose}>✕ 닫기</button>
+    </div>
+    <div class="rounded-xl overflow-hidden border border-line bg-canvas">
+      {#if previewUrl}
+        <img src={previewUrl} alt="생성된 지도 미리보기" class="w-full block max-h-[26dvh] object-contain" />
+      {/if}
+    </div>
   </div>
 
   <!-- 조절 -->

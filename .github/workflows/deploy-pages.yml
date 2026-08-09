@@ -1,0 +1,61 @@
+name: Deploy web build to Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:   # 수동 실행도 가능
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 빌드
+        run: npm run build
+
+      - name: 버전 파일 생성
+        # 앱이 이 파일을 읽어 새 버전인지 판단한다
+        run: |
+          echo "{\"version\":\"${GITHUB_SHA::7}\",\"builtAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > build/version.json
+          cat build/version.json
+
+      - name: 업데이트용 번들 압축
+        # 앱(capacitor-updater)이 이 zip을 받아 웹 부분만 교체한다
+        run: |
+          cd build
+          zip -qr ../bundle.zip .
+          cd ..
+          mv bundle.zip build/bundle.zip
+          ls -lh build/bundle.zip
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
