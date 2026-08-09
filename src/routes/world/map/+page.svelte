@@ -127,6 +127,7 @@
     showGenerator = true;
   }
 
+  let menuOpen = false;
   let editMode = false;
   let fullscreen = false; // 지도 전체화면 모드
   // 전체화면일 때 배경 페이지 스크롤 잠금 (스크롤바 겹침 방지)
@@ -229,72 +230,71 @@
 <!-- world 레이아웃이 셸 → 여기선 선택바 + 지도만 (full height) -->
 <div class="h-full flex flex-col">
   <!-- 지도 선택 + 핀 편집 -->
-  <div class="px-3 md:px-4 py-2.5 bg-surface/60 border-b border-line flex items-center justify-between gap-3 shrink-0">
-    <div class="flex items-center gap-2 min-w-0">
-      <span class="text-xs font-bold text-ink shrink-0">🗺️ 지도</span>
-      {#if mapDocs.length > 0}
-        <select
-          bind:value={selectedId}
-          class="min-w-0 rounded-lg border border-line bg-bubble px-2 py-1.5 text-xs text-ink outline-none focus:border-primary"
-        >
-          {#each mapDocs as d}
-            <option value={d.id}>{mapIcon(d)} {d.title || '제목 없는 장소'}</option>
-          {/each}
-        </select>
+  <div class="px-2 md:px-4 py-2 bg-surface/60 border-b border-line flex items-center gap-1.5 shrink-0">
+    <!-- 지도 선택 -->
+    <select
+      bind:value={selectedId}
+      class="flex-1 min-w-0 rounded-lg border border-line bg-bubble px-2 py-1.5 text-xs text-ink outline-none focus:border-primary"
+    >
+      {#if mapDocs.length === 0}
+        <option>지도 없음</option>
       {/if}
-    </div>
+      {#each mapDocs as d}
+        <option value={d.id}>{mapIcon(d)} {d.title || '제목 없는 장소'}</option>
+      {/each}
+    </select>
 
-    <button
-      on:click={() => openGenerator('village')}
-      class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border border-line text-muted hover:border-primary hover:text-primary transition"
-      title="마을 지도 만들기"
-    >
-      🏘️ 마을
-    </button>
-    <button
-      on:click={() => openGenerator('world')}
-      class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border border-line text-muted hover:border-primary hover:text-primary transition"
-    >
-      🌍 생성
-    </button>
-
-    {#if canExtract}
-      <button
-        on:click={() => { selectRegionMode = !selectRegionMode; if (selectRegionMode) editMode = false; }}
-        class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition
-               {selectRegionMode
-                 ? 'bg-emerald-600 text-white'
-                 : 'border border-line text-muted hover:border-emerald-500 hover:text-emerald-500'}"
-      >
-        {selectRegionMode ? '✅ 선택 끝' : '🔍 지역 뽑기'}
-      </button>
-    {/if}
-
+    <!-- 항상 보이는 핵심 버튼 -->
     {#if selected}
       <button
-        on:click={() => { regionDrawing = !regionDrawing; if (regionDrawing) { editMode = false; selectRegionMode = false; } else draftPoints = []; }}
-        class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition
-               {regionDrawing ? 'bg-rose-600 text-white' : 'border border-line text-muted hover:border-rose-500 hover:text-rose-500'}"
-      >
-        {regionDrawing ? '✅ 그리기 끝' : '🎨 지역 색칠'}
-      </button>
-      <button
         on:click={() => (fullscreen = true)}
-        class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border border-line text-muted hover:border-primary transition"
-        title="지도 전체화면"
-      >
-        ⛶ 전체화면
-      </button>
-      <button
-        on:click={() => (editMode = !editMode)}
-        class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition
-               {editMode
-                 ? 'bg-primary text-white'
-                 : 'border border-line text-muted hover:border-primary'}"
-      >
-        {editMode ? '✅ 편집 끝' : '✏️ 핀 편집'}
-      </button>
+        class="shrink-0 w-9 h-9 rounded-lg border border-line text-muted hover:border-primary transition"
+        title="전체화면"
+      >⛶</button>
     {/if}
+
+    <!-- 더보기 메뉴 -->
+    <div class="relative shrink-0">
+      <button
+        on:click={() => (menuOpen = !menuOpen)}
+        class="w-9 h-9 rounded-lg border border-line text-muted hover:border-primary transition"
+        title="메뉴"
+      >⋯</button>
+
+      {#if menuOpen}
+        <button class="fixed inset-0 z-30 cursor-default" on:click={() => (menuOpen = false)} aria-label="닫기"></button>
+        <div class="absolute right-0 top-11 z-40 w-44 rounded-xl border border-line bg-surface shadow-xl overflow-hidden">
+          <button
+            on:click={() => { menuOpen = false; openGenerator('world'); }}
+            class="w-full px-3 py-2.5 text-left text-xs text-ink hover:bg-bubble transition"
+          >🌍 세계·나라 만들기</button>
+          <button
+            on:click={() => { menuOpen = false; openGenerator('village'); }}
+            class="w-full px-3 py-2.5 text-left text-xs text-ink hover:bg-bubble transition"
+          >🏘️ 마을 만들기</button>
+
+          {#if canExtract}
+            <div class="border-t border-line"></div>
+            <button
+              on:click={() => { menuOpen = false; selectRegionMode = !selectRegionMode; if (selectRegionMode) { editMode = false; regionDrawing = false; } }}
+              class="w-full px-3 py-2.5 text-left text-xs hover:bg-bubble transition {selectRegionMode ? 'text-emerald-500 font-bold' : 'text-ink'}"
+            >🔍 {selectRegionMode ? '지역 뽑기 끄기' : '지역 뽑기'}</button>
+          {/if}
+
+          {#if selected}
+            <div class="border-t border-line"></div>
+            <button
+              on:click={() => { menuOpen = false; regionDrawing = !regionDrawing; if (regionDrawing) { editMode = false; selectRegionMode = false; } else draftPoints = []; }}
+              class="w-full px-3 py-2.5 text-left text-xs hover:bg-bubble transition {regionDrawing ? 'text-rose-500 font-bold' : 'text-ink'}"
+            >🎨 {regionDrawing ? '색칠 끝내기' : '지역 색칠'}</button>
+            <button
+              on:click={() => { menuOpen = false; editMode = !editMode; if (editMode) { regionDrawing = false; selectRegionMode = false; } }}
+              class="w-full px-3 py-2.5 text-left text-xs hover:bg-bubble transition {editMode ? 'text-primary font-bold' : 'text-ink'}"
+            >✏️ {editMode ? '핀 편집 끝내기' : '핀 편집'}</button>
+          {/if}
+        </div>
+      {/if}
+    </div>
   </div>
 
   <!-- 지도 영역 -->

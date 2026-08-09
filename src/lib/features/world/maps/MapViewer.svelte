@@ -39,7 +39,7 @@
       ? Math.min(100, ((ch * natW) / (natH * cw)) * 100 * 0.98)
       : 100;
 
-  function fit() { zoom = fitZoom; }
+  function fit() { zoom = rotated ? rotFitZoom : fitZoom; }
   function zoomIn() { zoom = Math.min(400, zoom + 50); }
   function zoomOut() { zoom = Math.max(Math.min(fitZoom, 100), zoom - 50); }
 
@@ -98,11 +98,30 @@
       zoom = portrait ? 100 : fitZoom;
     }
   }
-  // 전체화면: 컨테이너 크기가 처음 확정될 때 한 번만 화면맞춤 (이후 휠 줌 자유)
+  // 전체화면: 컨테이너 크기가 처음 확정될 때 한 번만 화면맞춤 (이후 줌 자유)
   let fsFitted = false;
   $: if (fullscreenMode && cw > 0 && ch > 0 && natW > 0 && natH > 0 && !fsFitted) {
-    zoom = fitZoom;
+    zoom = rotated ? rotFitZoom : fitZoom;
     fsFitted = true;
+  }
+
+  /* 세로 화면(폰)에서 가로로 긴 지도는 90° 돌려 보면 훨씬 크다 */
+  let rotateOn = true;   // 사용자가 끌 수 있게
+  $: rotated =
+    fullscreenMode && rotateOn &&
+    cw > 0 && ch > 0 && natW > 0 && natH > 0 &&
+    ch > cw * 1.15 &&        // 세로로 긴 화면
+    natW > natH * 1.15;      // 가로로 긴 지도
+
+  // 회전 상태 화면맞춤: 이미지 가로변이 화면 '세로'에, 세로변이 화면 '가로'에 들어가야 함
+  $: rotFitZoom =
+    cw > 0 && ch > 0 && natW > 0 && natH > 0
+      ? Math.min((ch / cw) * 100, (natW / natH) * 100) * 0.98
+      : 100;
+
+  function toggleRotate() {
+    rotateOn = !rotateOn;
+    zoom = rotated ? rotFitZoom : fitZoom;
   }
 
   function handleMapClick(e: MouseEvent) {
@@ -195,7 +214,7 @@
     <!-- 이미지 + 핀 레이어 (이미지 크기에 맞춰 핀이 따라감) -->
     <div
       class="relative inline-block m-auto {(editable && !selectable) || regionDrawing ? 'cursor-crosshair' : ''} {selectable ? 'cursor-crosshair' : ''}"
-      style="width: {zoom}%; {selectable || regionDrawing ? 'touch-action: none;' : ''}"
+      style="width: {zoom}%; {rotated ? `transform: rotate(90deg); transform-origin: center;` : ''} {selectable || regionDrawing ? 'touch-action: none;' : ''}"
       bind:this={mapEl}
       on:click={handleMapClick}
       on:pointerdown={selDown}
@@ -284,6 +303,14 @@
     <button on:click={zoomIn} class="w-9 h-9 rounded-lg bg-black/60 border border-white/10 text-slate-200 text-lg hover:border-indigo-500 transition backdrop-blur">+</button>
     <button on:click={zoomOut} class="w-9 h-9 rounded-lg bg-black/60 border border-white/10 text-slate-200 text-lg hover:border-indigo-500 transition backdrop-blur">−</button>
     <button on:click={fit} title="화면 맞춤" class="w-9 h-9 rounded-lg bg-black/60 border border-white/10 text-slate-200 text-sm hover:border-indigo-500 transition backdrop-blur">⛶</button>
+    {#if fullscreenMode && ch > cw * 1.15 && natW > natH * 1.15}
+      <button
+        on:click={toggleRotate}
+        title={rotateOn ? '가로로 보기 끄기' : '가로로 크게 보기'}
+        class="w-9 h-9 rounded-lg border text-sm transition backdrop-blur
+               {rotateOn ? 'bg-indigo-600/80 border-indigo-400 text-white' : 'bg-black/60 border-white/10 text-slate-200'}"
+      >⟳</button>
+    {/if}
   </div>
 
   {#if editable}

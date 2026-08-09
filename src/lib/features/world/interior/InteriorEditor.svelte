@@ -457,21 +457,21 @@
 
 <div class="w-full h-full flex flex-col bg-canvas">
   <!-- 상단 툴바 -->
-  <div class="shrink-0 px-3 py-2 border-b border-line bg-surface/70 flex flex-wrap items-center gap-2">
+  <div class="shrink-0 px-2 md:px-3 py-2 border-b border-line bg-surface/70 flex flex-wrap items-center gap-1.5">
     <input
       bind:value={building.name}
       on:change={commit}
       placeholder="건물 이름"
-      class="w-36 rounded-lg border border-line bg-canvas px-2 py-1 text-xs text-ink outline-none focus:border-primary"
+      class="w-24 md:w-36 rounded-lg border border-line bg-canvas px-2 py-1 text-xs text-ink outline-none focus:border-primary"
     />
 
     <div class="flex gap-1">
-      {#each [['select', '↖ 선택'], ['area', '▭ 영역'], ['wall', '🧱 담'], ['door', '🚪 문'], ['furniture', '🪑 가구']] as [t, label]}
+      {#each [['select', '↖', '선택'], ['area', '▭', '영역'], ['wall', '🧱', '담'], ['door', '🚪', '문'], ['furniture', '🪑', '가구']] as [t, icon, label]}
         <button
           on:click={() => (tool = t)}
           class="px-2.5 py-1 rounded-lg text-[11px] font-bold border transition
                  {tool === t ? 'border-primary text-primary bg-primary/10' : 'border-line text-muted'}"
-        >{label}</button>
+        ><span>{icon}</span><span class="hidden sm:inline"> {label}</span></button>
       {/each}
     </div>
 
@@ -493,7 +493,7 @@
             on:click={() => (doorKind = k)}
             class="px-2.5 py-1 rounded-lg text-[11px] font-bold border transition
                    {doorKind === k ? 'border-primary text-primary bg-primary/10' : 'border-line text-muted'}"
-          >{label}</button>
+          ><span>{icon}</span><span class="hidden sm:inline"> {label}</span></button>
         {/each}
       </div>
     {/if}
@@ -524,18 +524,18 @@
         disabled={!(level?.areas?.length)}
         class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-line text-muted hover:border-primary hover:text-primary disabled:opacity-40"
         title="방 안을 1인칭으로 둘러보기"
-      >👁 1인칭</button>
+      >👁<span class="hidden sm:inline"> 1인칭</span></button>
       <button on:click={clearFurniture} class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-line text-muted hover:border-rose-400 hover:text-rose-400" title="가구만 비우기">🪑✕</button>
-      <button on:click={clearAll} class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-line text-muted hover:border-rose-400 hover:text-rose-400" title="이 층 전체 비우기">🗑 전체</button>
-      <button on:click={exportFile} class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-line text-muted hover:border-primary">⬇ 내보내기</button>
+      <button on:click={clearAll} class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-line text-muted hover:border-rose-400 hover:text-rose-400" title="이 층 전체 비우기">🗑<span class="hidden sm:inline"> 전체</span></button>
+      <button on:click={exportFile} class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-line text-muted hover:border-primary">⬇<span class="hidden sm:inline"> 내보내기</span></button>
       <label class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-line text-muted hover:border-primary cursor-pointer">
-        ⬆ 가져오기
+        ⬆<span class="hidden sm:inline"> 가져오기</span>
         <input type="file" accept="application/json,.json" on:change={importFile} class="hidden" />
       </label>
     </div>
   </div>
 
-  <div class="flex-1 flex min-h-0">
+  <div class="flex-1 flex flex-col md:flex-row min-h-0">
     <!-- 캔버스 -->
     <div class="flex-1 relative overflow-hidden">
       <svg
@@ -702,7 +702,7 @@
             on:click={() => (doorKind = k)}
             class="px-2.5 py-1 rounded-lg text-[11px] font-bold border transition
                    {doorKind === k ? 'border-primary text-primary bg-primary/10' : 'border-line text-muted'}"
-          >{label}</button>
+          ><span>{icon}</span><span class="hidden sm:inline"> {label}</span></button>
         {/each}
       </div>
     {/if}
@@ -713,7 +713,7 @@
     </div>
 
     <!-- 우측 패널 -->
-    <div class="w-52 shrink-0 border-l border-line bg-surface/50 overflow-y-auto">
+    <div class="h-40 md:h-auto md:w-52 shrink-0 border-t md:border-t-0 md:border-l border-line bg-surface/50 overflow-y-auto">
       {#if tool === 'furniture'}
         <div class="p-2">
           <p class="text-[11px] font-bold text-ink mb-1.5">가구</p>
