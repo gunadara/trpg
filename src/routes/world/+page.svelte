@@ -43,6 +43,7 @@
       <div class="flex items-center gap-3">
         <a href="/world/timeline" class="text-xs text-indigo-400 hover:underline">📜 연표</a>
         <a href="/world/graph" class="text-xs text-indigo-400 hover:underline">🕸️ 관계도</a>
+        <a href="/world/trash" class="text-xs text-slate-400 hover:text-indigo-500 hover:underline">🗑 휴지통</a>
       </div>
     </div>
     <h1 class="text-xl md:text-2xl font-semibold mb-1">

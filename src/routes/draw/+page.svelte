@@ -1,18 +1,29 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { tagStore, type Group, type Sub } from '$lib/stores/tagStore';
+  import { onMount, onDestroy } from 'svelte';
+  import SaveIndicator from '$lib/components/edit/SaveIndicator.svelte';
+  import { saveStatus } from '$lib/stores/saveStatus';
+  import { tagStore, DEFAULT_SCALE, type Group, type Sub } from '$lib/stores/tagStore';
   import SlotMachine from '$lib/features/draw/SlotMachine.svelte';
+  import StatChart from '$lib/features/draw/StatChart.svelte';
+  import SurveyPanel from '$lib/features/draw/SurveyPanel.svelte';
+  import ProfilePanel from '$lib/features/draw/ProfilePanel.svelte';
   import RouletteWheel from '$lib/features/draw/RouletteWheel.svelte';
+  import SaveToCharacter from '$lib/features/draw/SaveToCharacter.svelte';
 
-  onMount(() => {
-    tagStore.load();
-    const s = localStorage.getItem('drawStyle');
-    if (s === 'slot' || s === 'roulette') drawStyle = s;
-    const ws = parseInt(localStorage.getItem('wheelSlots') ?? '', 10);
-    if (!Number.isNaN(ws) && ws >= 2 && ws <= 24) wheelSlots = ws;
-    const fm = localStorage.getItem('fillMode');
-    if (fm === 'shuffle' || fm === 'group') fillMode = fm;
-  });
+  // 화면 모드: 뽑기 / 검사 / 프로필
+  type Mode = 'draw' | 'survey' | 'profile';
+  let mode: Mode = 'draw';
+  const MODES: { v: Mode; label: string }[] = [
+    { v: 'draw', label: '🎲 뽑기' },
+    { v: 'survey', label: '📋 검사' },
+    { v: 'profile', label: '📊 프로필' }
+  ];
+  onDestroy(() => { tagStore.flush(); saveStatus.reset(); });
+  // 사이드바 접기 (폰은 기본 접힘)
+  let navOpen = true;
+  function closeOnPhone() { if (typeof window !== 'undefined' && window.innerWidth < 768) navOpen = false; }
+
+  function setMode(v: Mode) { closeOnPhone(); mode = v; try { localStorage.setItem('drawMode', v); } catch {} }
 
   // 뽑기 연출 방식
   type DrawStyle = 'instant' | 'slot' | 'roulette';
@@ -49,6 +60,24 @@
   let newGroupName = '';
   let tagInput: Record<string, string> = {}; // subId -> 입력값
 
+  // ── 수치 축 ──
+  $: scale = group?.scale ?? DEFAULT_SCALE;
+  // 균등 랜덤 — step 단위로 스냅
+  function rollValue(sc: { min: number; max: number; step: number }): number {
+    const n = Math.floor((sc.max - sc.min) / sc.step);
+    return sc.min + Math.floor(Math.random() * (n + 1)) * sc.step;
+  }
+  function usesScale(sub: Sub): boolean {
+    return sub.useScale === true && !!group?.scale;
+  }
+  // 슬롯/룰렛 릴용 풀 — 수치 축이면 샘플 값을 붙여 펼친다
+  function subPool(sub: Sub): string[] {
+    if (!usesScale(sub)) return sub.tags;
+    const sc = group!.scale!;
+    const steps = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round((sc.min + (sc.max - sc.min) * f) / sc.step) * sc.step);
+    return sub.tags.flatMap((t) => steps.map((v) => `${t} ${v}`));
+  }
+
   function addGroup() { if (newGroupName.trim()) { gid = tagStore.addGroup(newGroupName); newGroupName = ''; } }
   function addTags(sub: Sub) {
     const v = (tagInput[sub.id] ?? '').trim();
@@ -56,7 +85,20 @@
   }
 
   // 뽑기 결과: tag(태그) + source(출처, 전체 랜덤에서만 채움)
-  let results: { tag: string; source: string | null }[] = [];
+  type Result = { tag: string; source: string | null; label?: string; value?: number; sub?: string };
+  let results: Result[] = [];
+  // 수치가 붙은 결과를 항목별로 묶어 그래프로
+  $: charted = (() => {
+    const out: { sub: string; items: { label: string; value: number }[] }[] = [];
+    for (const r of results) {
+      if (r.value == null || !r.label) continue;
+      const key = r.sub ?? '';
+      let bucket = out.find((b) => b.sub === key);
+      if (!bucket) { bucket = { sub: key, items: [] }; out.push(bucket); }
+      bucket.items.push({ label: r.label, value: r.value });
+    }
+    return out;
+  })();
   let rolled = false;
   let copied = false;
   let pickCount = 3;
@@ -111,7 +153,7 @@
     if (drawStyle === 'roulette') {
       const pool = group.subs
         .filter((s) => s.enabled !== false)
-        .flatMap((s) => s.tags.map((t) => ({ tag: t, source: null as string | null })));
+        .flatMap((s) => subPool(s).map((t) => ({ tag: t, source: null as string | null })));
       startRoulette(pool);
       return;
     }
@@ -119,11 +161,20 @@
       // 체크된 항목마다 각각 1개씩 (캐릭터 완성용)
       const picked = group.subs
         .filter((s) => s.enabled !== false && s.tags.length > 0)
-        .map((s) => ({ tag: s.tags[Math.floor(Math.random() * s.tags.length)], source: null as string | null, pool: s.tags }));
+        .flatMap((s) => {
+          const pool = subPool(s);
+          // '태그 전부 뽑기'면 항목의 모든 태그를, 아니면 무작위 1개만
+          const src = s.all === true ? s.tags : [s.tags[Math.floor(Math.random() * s.tags.length)]];
+          return src.map((t) => {
+            if (!usesScale(s)) return { tag: t, source: null as string | null, pool };
+            const v = rollValue(group!.scale!);
+            return { tag: `${t} ${v}`, source: null as string | null, pool, label: t, value: v, sub: s.name };
+          });
+        });
       applyResults(picked);
     } else {
       // 체크된 항목 태그를 다 합쳐서 무작위 N개 (항목 구분 없이)
-      const pool = group.subs.filter((s) => s.enabled !== false).flatMap((s) => s.tags);
+      const pool = group.subs.filter((s) => s.enabled !== false).flatMap((s) => subPool(s));
       const shuffled = [...pool].sort(() => Math.random() - 0.5);
       const picked = shuffled
         .slice(0, Math.min(pickCount, shuffled.length))
@@ -135,7 +186,7 @@
   // 전체 랜덤 — 모든 분야 통틀어 N개, 출처는 아래에 표기
   function randomAll() {
     const pool = groups.flatMap((g) =>
-      g.subs.flatMap((s) => s.tags.map((t) => ({ tag: t, source: `${g.name}·${s.name}` })))
+      g.subs.flatMap((s) => subPool(s).map((t) => ({ tag: t, source: `${g.name}·${s.name}` })))
     );
     if (drawStyle === 'roulette') {
       startRoulette(pool);
@@ -150,8 +201,8 @@
   }
 
   // 결과 반영 + 슬롯 연출이면 릴 세팅
-  function applyResults(picked: { tag: string; source: string | null; pool: string[] }[]) {
-    results = picked.map((p) => ({ tag: p.tag, source: p.source }));
+  function applyResults(picked: (Result & { pool: string[] })[]) {
+    results = picked.map(({ pool, ...r }) => r);
     rolled = true;
     roulettePool = [];
     if (drawStyle === 'slot' && picked.length > 0) {
@@ -190,40 +241,66 @@
 <div class="h-screen flex flex-col md:flex-row bg-canvas text-ink overflow-hidden">
 
   <!-- 왼쪽(PC)/상단(폰): 대분류 -->
-  <aside class="w-full md:w-52 shrink-0 border-b md:border-b-0 md:border-r border-line bg-surface/40 flex flex-col">
+  <aside class="w-full md:w-52 shrink-0 border-b md:border-b-0 md:border-r border-line bg-surface/40 flex flex-col
+                {navOpen ? 'md:h-auto' : 'md:w-auto'}">
     <!-- 헤더: 폰에선 한 줄(제목+초기화), PC에선 블록 -->
-    <div class="p-3 md:p-4 md:border-b border-line flex items-center justify-between md:block">
-      <div class="min-w-0">
+    <div class="p-3 md:p-4 md:border-b border-line flex items-center justify-between">
+      <button on:click={() => (navOpen = !navOpen)}
+        class="shrink-0 me-2 w-8 h-8 rounded-lg border border-line text-muted hover:border-primary hover:text-primary"
+        aria-label="메뉴 열고 닫기" aria-expanded={navOpen}>☰</button>
+      <div class="min-w-0 flex-1">
         <a href="/" class="text-xs text-muted hover:text-primary">← 홈으로</a>
         <h1 class="text-base font-bold text-ink md:mt-1 inline md:block ms-2 md:ms-0">🃏 소재 뽑기</h1>
-        <p class="hidden md:block text-[10px] text-muted mt-0.5">분야 · 항목 · 태그</p>
+        <p class="hidden md:block text-[10px] text-muted mt-0.5">{MODES.find((m) => m.v === mode)?.label ?? ''}</p>
       </div>
       <button on:click={() => confirm('모든 태그를 기본값으로 되돌릴까요?') && tagStore.resetAll()}
         class="md:hidden shrink-0 text-[10px] text-subtle hover:text-rose-400 ms-2">초기화</button>
     </div>
 
+    {#if navOpen}
+    <!-- 모드 전환 (세로) -->
+    <div class="flex flex-col gap-1 px-2 pb-2 md:pt-2 md:border-b border-line">
+      {#each MODES as m (m.v)}
+        <button on:click={() => setMode(m.v)}
+          class="w-full text-left px-3 py-2 md:py-2.5 rounded-lg text-sm transition border
+                 {mode === m.v ? 'border-primary bg-primary/20 text-primary font-medium' : 'border-transparent text-muted hover:bg-bubble'}">
+          {m.label}
+        </button>
+      {/each}
+    </div>
+
+    {#if mode === 'draw'}
     <!-- 네비: PC 세로 목록 / 폰 가로 스크롤 칩 -->
-    <nav class="flex md:flex-col md:flex-1 overflow-x-auto md:overflow-x-visible md:overflow-y-auto p-2 gap-1 md:gap-0 md:space-y-1">
+    <nav class="flex flex-col md:flex-1 overflow-y-auto p-2 gap-1 md:gap-0 md:space-y-1">
       <!-- 전체 랜덤 (고정, 삭제 불가) -->
-      <button on:click={() => (gid = RANDOM_ID)}
-        class="shrink-0 md:w-full text-left px-3 py-2 md:py-2.5 rounded-lg text-sm transition flex items-center gap-2 whitespace-nowrap
+      <button on:click={() => { gid = RANDOM_ID; closeOnPhone(); }}
+        class="shrink-0 w-full text-left px-3 py-2 md:py-2.5 rounded-lg text-sm transition flex items-center gap-2 whitespace-nowrap
                {isRandom ? 'bg-amber-600/20 text-amber-200 border border-amber-600' : 'text-muted border border-transparent hover:bg-bubble'}">
         🎲 <span class="font-medium">전체 랜덤</span>
       </button>
       <div class="hidden md:block h-px bg-bubble my-1"></div>
 
       {#each groups as g (g.id)}
-        <button on:click={() => (gid = g.id)}
-          class="shrink-0 md:w-full text-left px-3 py-2 md:py-2.5 rounded-lg text-sm transition flex items-center gap-2 md:justify-between whitespace-nowrap
-                 {gid === g.id ? 'bg-primary/20 text-primary border border-primary' : 'text-muted border border-transparent hover:bg-bubble'}">
-          <span class="font-medium">{g.name}</span>
-          <span class="text-[10px] text-muted">{g.subs.length}</span>
-        </button>
+        <div class="shrink-0 w-full inline-flex items-center rounded-lg border transition whitespace-nowrap
+                    {gid === g.id ? 'bg-primary/20 border-primary' : 'border-transparent hover:bg-bubble'}">
+          <button on:click={() => { gid = g.id; closeOnPhone(); }}
+            class="flex-1 min-w-0 text-left px-3 py-2 md:py-2.5 text-sm flex items-center gap-2 justify-between
+                   {gid === g.id ? 'text-primary' : 'text-muted'}">
+            <span class="font-medium">{g.name}</span>
+            <span class="text-[10px] text-muted">{g.subs.length}</span>
+          </button>
+          {#if gid === g.id}
+            <button on:click={() => { const n = prompt('분야 이름', g.name); if (n && n.trim()) tagStore.renameGroup(g.id, n); }}
+              class="px-1.5 py-2 text-[11px] text-subtle hover:text-primary" title="분야 이름 수정">✎</button>
+            <button on:click={() => { if (confirm(`「${g.name}」 분야를 통째로 삭제할까요?`)) { tagStore.deleteGroup(g.id); gid = null; } }}
+              class="pe-2 ps-0.5 py-2 text-[11px] text-subtle hover:text-rose-400" title="분야 삭제">🗑</button>
+          {/if}
+        </div>
       {/each}
 
       <!-- 폰 전용: 분야 추가 칩 (PC는 아래 입력칸 사용) -->
       <button on:click={() => { const n = prompt('새 분야 이름'); if (n && n.trim()) gid = tagStore.addGroup(n); }}
-        class="md:hidden shrink-0 px-3 py-2 rounded-lg text-sm border border-dashed border-line text-muted hover:border-primary whitespace-nowrap">＋ 분야</button>
+        class="md:hidden w-full px-3 py-2 rounded-lg text-sm border border-dashed border-line text-muted hover:border-primary">＋ 분야</button>
     </nav>
 
     <!-- PC 전용 푸터: 새 분야 입력 + 전체 초기화 -->
@@ -237,11 +314,17 @@
       <button on:click={() => confirm('모든 태그를 기본값으로 되돌릴까요?') && tagStore.resetAll()}
         class="w-full text-[10px] text-subtle hover:text-rose-400 text-left px-1">전체 초기화</button>
     </div>
+    {/if}
+    {/if}
   </aside>
 
   <!-- 오른쪽: 결과 박스 + 세부분류/태그 -->
   <main class="flex-1 overflow-y-auto">
-    {#if isRandom}
+    {#if mode === 'survey'}
+      <SurveyPanel />
+    {:else if mode === 'profile'}
+      <ProfilePanel />
+    {:else if isRandom}
       <!-- 전체 랜덤 화면 -->
       <div class="max-w-2xl mx-auto p-6 space-y-5">
         <section class="rounded-2xl border border-line bg-surface/60 p-5">
@@ -419,9 +502,27 @@
                 {/each}
               </div>
             {/if}
+
+            <!-- 그래프: 연출(바로/슬롯) 상관없이, 굴러가는 중이 아닐 때 -->
+            {#if charted.length > 0 && !spinning}
+              <div class="w-full mt-4 pt-4 border-t border-line space-y-4">
+                {#each charted as c (c.sub)}
+                  <StatChart items={c.items} min={scale.min} max={scale.max} step={scale.step} title={c.sub} />
+                {/each}
+              </div>
+            {/if}
           </div>
           {#if rolled && results.length > 0 && !spinning}
-            <button on:click={copyResult} class="mt-2 text-xs text-emerald-400 hover:underline">{copied ? '✓ 복사됨' : '📋 결과 복사'}</button>
+            <div class="mt-2 flex flex-wrap items-center gap-3">
+              <button on:click={copyResult} class="text-xs text-emerald-400 hover:underline">{copied ? '✓ 복사됨' : '📋 결과 복사'}</button>
+            </div>
+            {#if charted.length > 0}
+              <div class="mt-2">
+                <SaveToCharacter items={charted[0].items} setKey={charted[0].sub}
+                  source={`뽑기 · ${group.name} · ${charted[0].sub}`}
+                  min={scale.min} max={scale.max} step={scale.step} />
+              </div>
+            {/if}
           {/if}
         </section>
 
@@ -436,7 +537,7 @@
                   title="분야 전체 뽑기에 포함">{sub.enabled !== false ? '☑' : '☐'}</button>
                 <button on:click={() => (activeSubId = sub.id)}
                   class="pe-3 ps-1 py-1.5 text-xs {activeSubId === sub.id ? 'text-primary' : 'text-muted hover:text-ink'}">
-                  {sub.name} <span class="text-subtle">({sub.tags.length})</span>
+                  {sub.name} <span class="text-subtle">({sub.tags.length})</span>{#if sub.useScale}<span class="text-amber-400/80 ms-0.5">📊</span>{/if}
                 </button>
               </div>
             {/each}
@@ -447,9 +548,15 @@
           {#if activeSub}
             <section class="rounded-2xl border border-line bg-surface/40 p-4">
               <div class="flex items-center justify-between mb-3">
-                <h3 class="text-sm font-bold text-ink">{activeSub.name}</h3>
+                <button on:click={() => { const n = prompt('항목 이름', activeSub.name); if (n && n.trim()) tagStore.renameSub(group.id, activeSub.id, n); }}
+                  class="text-sm font-bold text-ink hover:text-primary transition inline-flex items-center gap-1.5" title="이름 수정">
+                  {activeSub.name}<span class="text-[11px] font-normal text-subtle">✎</span>
+                </button>
+                <span class="flex items-center gap-2.5">
+                <SaveIndicator />
                 <button on:click={() => { if (confirm(`「${activeSub.name}」 삭제할까요?`)) { tagStore.deleteSub(group.id, activeSub.id); activeSubId = null; } }}
                   class="text-[11px] text-subtle hover:text-rose-400">항목 삭제</button>
+                </span>
               </div>
 
               <div class="flex flex-wrap gap-1.5 mb-3">
@@ -469,6 +576,58 @@
                   placeholder="태그 입력 (쉼표로 여러 개)"
                   class="flex-1 rounded-lg border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-primary" />
                 <button on:click={() => addTags(activeSub)} class="px-4 py-2 rounded-lg bg-bubble hover:bg-bubble text-sm">추가</button>
+              </div>
+
+              <!-- 수치 축 -->
+              <div class="mt-4 pt-3 border-t border-line space-y-2">
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                  <button on:click={() => tagStore.toggleScale(group.id, activeSub.id)}
+                    class="text-[11px] {activeSub.useScale ? 'text-emerald-400' : 'text-subtle hover:text-ink'}"
+                    title="이 항목의 태그에 수치를 붙여 뽑습니다">
+                    {activeSub.useScale ? '☑' : '☐'} 수치 축 적용
+                  </button>
+                  <button on:click={() => tagStore.toggleAll(group.id, activeSub.id)}
+                    class="text-[11px] {activeSub.all ? 'text-emerald-400' : 'text-subtle hover:text-ink'}"
+                    title="태그를 하나만 고르지 않고 전부 내보냅니다">
+                    {activeSub.all ? '☑' : '☐'} 태그 전부 뽑기
+                  </button>
+                </div>
+
+                {#if activeSub.useScale}
+                  <div class="rounded-lg border border-line bg-canvas/50 px-3 py-2.5 space-y-2">
+                    <div class="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] text-muted">
+                      <span>숫자 범위</span>
+                      <input type="number" value={scale.min}
+                        on:change={(e) => tagStore.setScale(group.id, { ...scale, min: +e.currentTarget.value })}
+                        class="w-14 rounded border border-line bg-canvas px-1.5 py-1 text-xs text-ink outline-none focus:border-primary" />
+                      <span>~</span>
+                      <input type="number" value={scale.max}
+                        on:change={(e) => tagStore.setScale(group.id, { ...scale, max: +e.currentTarget.value })}
+                        class="w-14 rounded border border-line bg-canvas px-1.5 py-1 text-xs text-ink outline-none focus:border-primary" />
+                      <span class="ms-1">몇 칸씩</span>
+                      <input type="number" value={scale.step} min="1"
+                        on:change={(e) => tagStore.setScale(group.id, { ...scale, step: +e.currentTarget.value })}
+                        class="w-12 rounded border border-line bg-canvas px-1.5 py-1 text-xs text-ink outline-none focus:border-primary" />
+                    </div>
+
+                    <p class="text-[10px] text-subtle leading-relaxed">
+                      태그마다 {scale.min}~{scale.max} 사이 숫자가 {scale.step}씩 끊어서 붙어요
+                      ({[0, 1, 2].map((i) => scale.min + i * scale.step).join(', ')} … {scale.max}).
+                      성격 수치처럼 정도를 매길 때 써요. · 이 범위는 「{group.name}」 분야 전체에 적용돼요.
+                    </p>
+
+                    {#if activeSub.tags.length > 0}
+                      <p class="text-[10px] text-subtle">
+                        예시 · {activeSub.tags[0]} {Math.round((scale.min + scale.max) / 2 / scale.step) * scale.step}
+                        {#if activeSub.all}<span class="text-amber-300/70">· {activeSub.tags.length}개 전부 뽑아서 그래프로</span>{/if}
+                      </p>
+                    {:else}
+                      <p class="text-[10px] text-subtle">태그를 먼저 넣어주세요.</p>
+                    {/if}
+                  </div>
+                {:else}
+                  <p class="text-[11px] text-subtle">태그만 뽑아요. 숫자를 같이 붙이려면 위를 켜세요.</p>
+                {/if}
               </div>
             </section>
           {:else}

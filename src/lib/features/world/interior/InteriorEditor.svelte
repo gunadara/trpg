@@ -683,7 +683,7 @@
       </svg>
 
       <!-- 안내 -->
-      <div class="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-black/55 text-white text-[11px] backdrop-blur pointer-events-none">
+      <div class="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-black text-white text-[11px] pointer-events-none">
         {#if tool === 'wall'}
       <div class="flex gap-1">
         {#each Object.entries(WALL_STYLE) as [k, m]}

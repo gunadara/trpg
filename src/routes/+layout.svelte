@@ -64,7 +64,7 @@ const WORLD_ITEMS: NavItem[] = WORLD_CATEGORY_IDS.map((id) => ({
 {:else}
   <div class="min-h-screen flex bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50">
     <!-- 좌측 고정 사이드바 (md 이상) -->
-    <aside class="hidden md:flex md:flex-col md:w-64 border-r border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-950/40 backdrop-blur">
+    <aside class="hidden md:flex md:flex-col md:w-64 border-r border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950">
       <div class="h-16 px-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
         <span class="text-lg font-semibold tracking-wide">
           GENESIS<span class="text-indigo-400">.MVP</span>
@@ -95,7 +95,7 @@ const WORLD_ITEMS: NavItem[] = WORLD_CATEGORY_IDS.map((id) => ({
     <!-- 우측 영역 -->
     <div class="flex-1 flex flex-col">
       <!-- 상단 앱바 (모바일 전용) -->
-      <header class="md:hidden h-14 px-3 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-950/60 backdrop-blur">
+      <header class="md:hidden h-14 px-3 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950">
         <button
           type="button"
           class="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition"

@@ -35,8 +35,11 @@
     importStatus = '데이터 복원 중...';
 
     try {
-      const count = await importBackup(file);
-      alert(`${count}개의 문서가 성공적으로 복원되었습니다!`);
+      const r = await importBackup(file);
+      const parts = [`문서 ${r.docs}개`];
+      if (r.groups > 0) parts.push(`소재 뽑기 분야 ${r.groups}개`);
+      if (r.inventories > 0) parts.push(`검사지 ${r.inventories}개`);
+      alert(`복원 완료!\n${parts.join(' / ')}`);
       importStatus = '';
       // 복원 후 홈으로 이동해서 갱신된 데이터 확인
       goto('/');

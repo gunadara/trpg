@@ -45,7 +45,7 @@
       ? {
           root: 'bg-slate-950 text-slate-100',
           border: 'border-slate-800',
-          bar: 'border-slate-800 bg-slate-900/80',
+          bar: 'border-slate-800 bg-slate-900',
           side: 'border-slate-800 bg-slate-900/40',
           sub: 'text-slate-500',
           navIdle: 'text-slate-300 hover:bg-slate-800/60',
@@ -56,7 +56,7 @@
       : {
           root: 'bg-canvas text-ink',
           border: 'border-line',
-          bar: 'border-line bg-surface/80',
+          bar: 'border-line bg-surface',
           side: 'border-line bg-surface',
           sub: 'text-subtle',
           navIdle: 'text-muted hover:bg-black/5 dark:hover:bg-white/5',
@@ -68,7 +68,7 @@
 
 <div class="min-h-[100dvh] flex flex-col {t.root}">
   <!-- 🔹 모바일 앱바 (md 미만) -->
-  <header class="md:hidden flex items-center justify-between px-3 py-2 border-b backdrop-blur {t.bar}">
+  <header class="md:hidden flex items-center justify-between px-3 py-2 border-b {t.bar}">
     <div class="flex items-center gap-2 min-w-0">
       {#if hasNav}
         <button
@@ -129,7 +129,7 @@
 
     <!-- 데스크탑 헤더 + 메인 -->
     <div class="flex-1 min-h-0 flex flex-col">
-      <header class="hidden md:flex items-center justify-between px-4 py-2.5 border-b backdrop-blur {t.bar}">
+      <header class="hidden md:flex items-center justify-between px-4 py-2.5 border-b {t.bar}">
         <div class="flex items-center gap-3 min-w-0">
           {#if !hasNav}
             <a href={homeHref} class="text-sm transition {t.link}">← 홈으로</a>

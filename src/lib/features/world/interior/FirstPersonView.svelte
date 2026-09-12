@@ -444,14 +444,14 @@
 
   <button
     on:click={() => { if (document.pointerLockElement) document.exitPointerLock?.(); onClose(); }}
-    class="absolute top-4 left-4 px-4 py-2 rounded-xl bg-black/60 border border-white/15 text-slate-100 text-sm font-bold backdrop-blur"
+    class="absolute top-4 left-4 px-4 py-2 rounded-xl bg-black border border-white/15 text-slate-100 text-sm font-bold"
   >✕ 나가기</button>
 
   <!-- 마우스: 잠금 안내 -->
   {#if !isTouch && !locked}
     <button
       on:click={requestLock}
-      class="absolute inset-0 m-auto w-64 h-24 rounded-2xl bg-black/65 border border-white/20 text-slate-100 backdrop-blur flex flex-col items-center justify-center gap-1"
+      class="absolute inset-0 m-auto w-64 h-24 rounded-2xl bg-black border border-white/20 text-slate-100 flex flex-col items-center justify-center gap-1"
     >
       <span class="text-sm font-bold">화면을 클릭하세요</span>
       <span class="text-[11px] text-white/70">마우스로 둘러보기 · WASD 이동 · ESC 나가기</span>
@@ -472,7 +472,7 @@
   {/if}
 
   {#if !isTouch && locked}
-    <div class="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-black/50 text-white/70 text-[11px] backdrop-blur pointer-events-none">
+    <div class="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-black text-white/70 text-[11px] pointer-events-none">
       WASD 이동 · 마우스 둘러보기 · ESC 나가기
     </div>
     <!-- 조준점 -->

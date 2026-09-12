@@ -12,13 +12,17 @@
     getPath,
     setPath,
     ensureShape,
-    isVisible
+    isVisible,
+    migrateProfileToRoot
   } from '$lib/domain/sheetSchemas';
 
   export let value: any = {};
   export let schema: SheetSchema;
 
   if (!value.profile) value.profile = {};
+
+  // 저장 자리를 옮긴 시트는 예전 위치(profile.*)의 값을 한 번 이사시킨다
+  $: if (value && schema) migrateProfileToRoot(value, schema);
 
   // 값을 어디에 저장할지 — 흡수한 시트는 attributes.* 를 그대로 쓴다
   $: p = schema.dataRoot === 'root' ? value : value.profile;

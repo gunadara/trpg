@@ -301,7 +301,7 @@
   <div class="flex-1 p-3 md:p-4 relative min-h-0">
     {#if selected && regionDrawing}
       <div class="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2
-                  px-4 py-3 rounded-2xl bg-surface/95 border border-line backdrop-blur shadow-lg">
+                  px-4 py-3 rounded-2xl bg-surface border border-line shadow-lg">
         <p class="text-[11px] text-muted">지도 위를 <b>드래그</b>해서 지역을 그리세요 (손 떼면 완성)</p>
         <div class="flex items-center gap-1.5">
           {#each REGION_COLORS as c}
@@ -464,7 +464,7 @@
       </div>
       <button
         on:click={() => (fullscreen = false)}
-        class="absolute top-4 left-4 z-10 px-4 py-2 rounded-xl bg-black/60 border border-white/10 text-slate-200 text-sm font-bold backdrop-blur hover:border-indigo-500 transition"
+        class="absolute top-4 left-4 z-10 px-4 py-2 rounded-xl bg-black border border-white/10 text-slate-200 text-sm font-bold hover:border-indigo-500 transition"
       >
         ✕ 닫기
       </button>

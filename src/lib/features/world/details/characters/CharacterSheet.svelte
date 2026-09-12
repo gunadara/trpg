@@ -252,7 +252,7 @@
 
   <!-- 🔍 검색 팝업 (모달) -->
   {#if isSearchOpen}
-    <div class="absolute inset-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm rounded-xl p-4 flex flex-col animate-fadeIn">
+    <div class="absolute inset-0 z-50 bg-white dark:bg-slate-900 rounded-xl p-4 flex flex-col animate-fadeIn">
       <div class="flex items-center justify-between mb-3">
         <h4 class="text-sm font-bold text-indigo-500">
           {searchTarget === 'inventory' ? '⚔️ 아이템 검색' : '✨ 스킬 검색'}

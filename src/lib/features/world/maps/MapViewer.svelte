@@ -300,27 +300,27 @@
 
   <!-- 줌 컨트롤 -->
   <div class="absolute top-4 right-4 flex flex-col gap-1.5">
-    <button on:click={zoomIn} class="w-9 h-9 rounded-lg bg-black/60 border border-white/10 text-slate-200 text-lg hover:border-indigo-500 transition backdrop-blur">+</button>
-    <button on:click={zoomOut} class="w-9 h-9 rounded-lg bg-black/60 border border-white/10 text-slate-200 text-lg hover:border-indigo-500 transition backdrop-blur">−</button>
-    <button on:click={fit} title="화면 맞춤" class="w-9 h-9 rounded-lg bg-black/60 border border-white/10 text-slate-200 text-sm hover:border-indigo-500 transition backdrop-blur">⛶</button>
+    <button on:click={zoomIn} class="w-9 h-9 rounded-lg bg-black border border-white/10 text-slate-200 text-lg hover:border-indigo-500 transition">+</button>
+    <button on:click={zoomOut} class="w-9 h-9 rounded-lg bg-black border border-white/10 text-slate-200 text-lg hover:border-indigo-500 transition">−</button>
+    <button on:click={fit} title="화면 맞춤" class="w-9 h-9 rounded-lg bg-black border border-white/10 text-slate-200 text-sm hover:border-indigo-500 transition">⛶</button>
     {#if fullscreenMode && ch > cw * 1.15 && natW > natH * 1.15}
       <button
         on:click={toggleRotate}
         title={rotateOn ? '가로로 보기 끄기' : '가로로 크게 보기'}
-        class="w-9 h-9 rounded-lg border text-sm transition backdrop-blur
+        class="w-9 h-9 rounded-lg border text-sm transition
                {rotateOn ? 'bg-indigo-600/80 border-indigo-400 text-white' : 'bg-black/60 border-white/10 text-slate-200'}"
       >⟳</button>
     {/if}
   </div>
 
   {#if editable}
-    <div class="absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-indigo-600/90 text-white text-[11px] font-bold backdrop-blur pointer-events-none">
+    <div class="absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-indigo-600 text-white text-[11px] font-bold pointer-events-none">
       ✏️ 편집 모드 — 지도를 탭하면 핀이 찍혀요
     </div>
   {/if}
 
   {#if selectable}
-    <div class="absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-emerald-600/90 text-white text-[11px] font-bold backdrop-blur pointer-events-none">
+    <div class="absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-emerald-600 text-white text-[11px] font-bold pointer-events-none">
       🔍 드래그해서 지역을 선택하세요
     </div>
   {/if}

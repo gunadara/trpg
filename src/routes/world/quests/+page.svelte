@@ -9,6 +9,8 @@
   import { goto } from '$app/navigation';
 
   import DocListLayout from '$lib/components/docs/DocListLayout.svelte';
+  import DocSelectBar from '$lib/components/docs/DocSelectBar.svelte';
+  import { trashSize } from '$lib/stores/trashStore';
 
   const CATEGORY: CategoryId = 'quests';
   const META = CATEGORY_META[CATEGORY];
@@ -18,6 +20,7 @@
 
   function refreshList() {
     docs = listDocs(CATEGORY);
+    refreshTrash();
   }
 
   // 세계 바뀌면 목록 리로드
@@ -45,6 +48,36 @@
     if (!confirm(`"${doc.title}" 문서를 삭제할까요?\n(되돌릴 수 없습니다)`)) return;
     deleteDoc(doc.id);
     refreshList();
+  }
+
+  // ── 선택 삭제 / 휴지통 ──
+  let trashN = 0;
+  function refreshTrash() {
+    // 휴지통은 카테고리 구분 없이 한 곳에 모아 본다
+    trashN = trashSize();
+  }
+
+  let selectMode = false;
+  let selected: Set<string> = new Set();
+
+  function toggleSelect(id: string) {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    selected = next;
+  }
+
+  function deleteSelected(ids: string[]) {
+    ids.forEach((id) => deleteDoc(id));
+    refreshList();
+  }
+
+  // 검색어가 바뀌면 화면에 없는 선택이 남지 않게 정리
+  $: if (selectMode && listFilter !== undefined) {
+    const visible = new Set(filteredDocs.map((d) => d.id));
+    if ([...selected].some((id) => !visible.has(id))) {
+      selected = new Set([...selected].filter((id) => visible.has(id)));
+    }
   }
 </script>
 
@@ -77,7 +110,17 @@
       </p>
     </div>
   {:else}
-    <ul class="h-full overflow-y-auto py-1">
+    <div class="h-full flex flex-col">
+      <DocSelectBar
+        visibleDocs={filteredDocs}
+        totalCount={docs.length}
+        bind:selectMode
+        bind:selected
+        onDeleteSelected={deleteSelected}
+        trashCount={trashN}
+        onOpenTrash={() => goto('/world/trash')}
+      />
+      <ul class="flex-1 overflow-y-auto py-1">
       {#each filteredDocs as doc}
         <li>
           <div
@@ -85,10 +128,24 @@
                    border-b border-slate-100/60 dark:border-slate-800/60
                    last:border-b-0 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 transition"
           >
+            {#if selectMode}
+              <button
+                type="button"
+                on:click={() => toggleSelect(doc.id)}
+                class="mt-2 h-4 w-4 rounded border flex items-center justify-center text-[9px] shrink-0 transition
+                       {selected.has(doc.id)
+                         ? 'bg-indigo-500 border-indigo-500 text-white'
+                         : 'border-slate-300 dark:border-slate-600'}"
+                aria-label="선택"
+              >
+                {selected.has(doc.id) ? '✓' : ''}
+              </button>
+            {/if}
+
             <button
               type="button"
               class="flex flex-1 items-start gap-3 text-left"
-              on:click={() => openDoc(doc)}
+              on:click={() => (selectMode ? toggleSelect(doc.id) : openDoc(doc))}
             >
               <div
                 class="mt-0.5 h-8 w-8 rounded-full overflow-hidden
@@ -135,6 +192,7 @@
           </div>
         </li>
       {/each}
-    </ul>
+      </ul>
+    </div>
   {/if}
 </DocListLayout>

@@ -164,25 +164,22 @@ const NATIONS: SheetSchema = {
   icon: '🏳️',
   title: '나라 시트',
   subtitle: '통치 / 지리 / 문화 / 정세',
+  dataRoot: 'root',
   sections: [
     {
-      id: 'basic',
-      icon: '',
-      title: '',
-      cols: 4,
+      id: 'basic', icon: '', title: '', cols: 4,
       fields: [
-        { key: 'basic.form', label: '정체', type: 'text', placeholder: '왕국, 공화국…' },
-        { key: 'basic.capital', label: '수도', type: 'text' },
-        { key: 'basic.ruler', label: '통치자', type: 'text' },
-        { key: 'basic.founded', label: '건국', type: 'text' }
+        { key: 'political', label: '정치 체제', type: 'text', placeholder: '예: 절대왕정, 공화정' },
+        { key: 'ruler', label: '통치자', type: 'text' },
+        { key: 'capital', label: '수도', type: 'text' },
+        { key: 'population', label: '인구', type: 'text', placeholder: '예: 약 300만' }
       ]
     },
     {
-      id: 'rule',
-      icon: '👑',
-      title: '통치',
-      cols: 2,
+      id: 'rule', icon: '👑', title: '통치', cols: 2,
       fields: [
+        { key: 'alignment', label: '국가 성향', type: 'text', placeholder: '예: 팽창주의, 고립주의' },
+        { key: 'founded', label: '건국', type: 'text' },
         { key: 'rule.structure', label: '권력 구조', type: 'long', placeholder: '누가 실제로 결정하는가' },
         { key: 'rule.law', label: '법 · 제도', type: 'long' },
         { key: 'rule.classes', label: '계급 · 신분', type: 'list' },
@@ -190,37 +187,29 @@ const NATIONS: SheetSchema = {
       ]
     },
     {
-      id: 'land',
-      icon: '🗺',
-      title: '지리 · 경제',
-      cols: 2,
+      id: 'land', icon: '🗺', title: '지리 · 경제', cols: 2,
       fields: [
+        { key: 'industry', label: '주력 산업', type: 'text', placeholder: '예: 농업, 광산업, 해상무역' },
         { key: 'land.terrain', label: '지형 · 기후', type: 'long' },
         { key: 'land.cities', label: '주요 도시', type: 'list' },
-        { key: 'land.industry', label: '산업 · 특산', type: 'list' },
         { key: 'land.trade', label: '교역 · 화폐', type: 'long' }
       ]
     },
     {
-      id: 'culture',
-      icon: '🎎',
-      title: '문화',
-      cols: 2,
+      id: 'culture', icon: '🎎', title: '문화', cols: 2,
       fields: [
-        { key: 'culture.people', label: '주민 · 종족 구성', type: 'long' },
-        { key: 'culture.faith', label: '종교 · 신앙', type: 'long' },
-        { key: 'culture.custom', label: '풍습 · 금기', type: 'list' },
-        { key: 'culture.language', label: '언어 · 문자', type: 'text' }
+        { key: 'mainRace', label: '주요 종족', type: 'text' },
+        { key: 'cul.language', label: '언어 · 문자', type: 'text' },
+        { key: 'culture', label: '문화 · 풍습', type: 'long', span: 2 },
+        { key: 'cul.faith', label: '종교 · 신앙', type: 'long' },
+        { key: 'cul.custom', label: '금기', type: 'list' }
       ]
     },
     {
-      id: 'tension',
-      icon: '🔥',
-      title: '정세',
-      cols: 2,
-      accent: true,
+      id: 'tension', icon: '🔥', title: '정세', cols: 2, accent: true,
       fields: [
-        { key: 'tension.conflict', label: '갈등 · 불안 요소', type: 'long', span: 2, placeholder: '이 나라가 안고 있는 문제' },
+        { key: 'conflict', label: '현재 정세 · 갈등', type: 'long', span: 2 },
+        { key: 'secrets', label: '🔒 숨겨진 사정', type: 'long', span: 2 },
         { key: 'tension.allies', label: '우호국', type: 'list' },
         { key: 'tension.enemies', label: '적대국', type: 'list' }
       ]
@@ -228,68 +217,51 @@ const NATIONS: SheetSchema = {
   ]
 };
 
-// ────────────────────────────────────────────
-// 종족
-// ────────────────────────────────────────────
+
 const RACES: SheetSchema = {
   scope: 'races',
   icon: '🧝‍♀️',
   title: '종족 시트',
   subtitle: '신체 / 생태 / 사회 / 관계',
+  dataRoot: 'root',
   sections: [
     {
-      id: 'basic',
-      icon: '',
-      title: '',
-      cols: 4,
+      id: 'basic', icon: '', title: '', cols: 4,
       fields: [
-        { key: 'basic.lifespan', label: '수명', type: 'text' },
-        { key: 'basic.height', label: '평균 신장', type: 'text' },
-        { key: 'basic.habitat', label: '주 서식지', type: 'text' },
-        { key: 'basic.population', label: '규모', type: 'text' }
+        { key: 'lifespan', label: '수명', type: 'text', placeholder: '예: 약 700년' },
+        { key: 'adultAge', label: '성인 기준', type: 'text' },
+        { key: 'avgHeight', label: '평균 신장', type: 'text' },
+        { key: 'habitat', label: '주 서식지', type: 'text' }
       ]
     },
     {
-      id: 'body',
-      icon: '🧬',
-      title: '신체 · 능력',
-      cols: 2,
+      id: 'body', icon: '🧬', title: '신체 · 능력', cols: 2,
       fields: [
-        { key: 'body.look', label: '생김새', type: 'long', span: 2 },
-        { key: 'body.traits', label: '고유 능력', type: 'list' },
-        { key: 'body.weakness', label: '약점 · 제약', type: 'list' }
+        { key: 'traits', label: '외형적 특징', type: 'long', span: 2 },
+        { key: 'ability', label: '고유 능력', type: 'long' },
+        { key: 'weakness', label: '약점 · 제약', type: 'long' }
       ]
     },
     {
-      id: 'life',
-      icon: '🌱',
-      title: '생태',
-      cols: 2,
+      id: 'life', icon: '🌱', title: '생태', cols: 2,
       fields: [
         { key: 'life.cycle', label: '탄생 · 성장 · 죽음', type: 'long' },
         { key: 'life.food', label: '식성 · 생활', type: 'long' }
       ]
     },
     {
-      id: 'society',
-      icon: '🏘',
-      title: '사회',
-      cols: 2,
+      id: 'society', icon: '🏘', title: '사회', cols: 2,
       fields: [
-        { key: 'society.structure', label: '무리 · 가족 구조', type: 'long' },
-        { key: 'society.faith', label: '신앙 · 가치관', type: 'long' },
-        { key: 'society.custom', label: '풍습 · 금기', type: 'list' },
-        { key: 'society.language', label: '언어', type: 'text' }
+        { key: 'language', label: '언어', type: 'text' },
+        { key: 'soc.faith', label: '신앙 · 가치관', type: 'text' },
+        { key: 'society', label: '사회 구조', type: 'long', span: 2 },
+        { key: 'soc.custom', label: '풍습 · 금기', type: 'list', span: 2 }
       ]
     },
     {
-      id: 'relation',
-      icon: '🔥',
-      title: '다른 종족과',
-      cols: 2,
-      accent: true,
+      id: 'relation', icon: '🔥', title: '다른 종족과', cols: 2, accent: true,
       fields: [
-        { key: 'relation.view', label: '바깥에서 이 종족을 보는 시선', type: 'long', span: 2 },
+        { key: 'relations', label: '타 종족과의 관계', type: 'long', span: 2 },
         { key: 'relation.friendly', label: '우호', type: 'list' },
         { key: 'relation.hostile', label: '적대', type: 'list' }
       ]
@@ -297,43 +269,51 @@ const RACES: SheetSchema = {
   ]
 };
 
-// ────────────────────────────────────────────
-// 단체
-// ────────────────────────────────────────────
+
 const GROUPS: SheetSchema = {
   scope: 'groups',
   icon: '🏛️',
   title: '단체 시트',
   subtitle: '목적 / 구성 / 자원 / 갈등',
+  dataRoot: 'root',
   sections: [
     {
-      id: 'basic',
-      icon: '',
-      title: '',
-      cols: 4,
+      id: 'basic', icon: '', title: '', cols: 4,
       fields: [
-        { key: 'basic.kind', label: '종류', type: 'text', placeholder: '길드, 교단, 상회…' },
-        { key: 'basic.leader', label: '수장', type: 'text' },
-        { key: 'basic.base', label: '본거지', type: 'text' },
-        { key: 'basic.size', label: '규모', type: 'text' }
+        {
+          key: 'type', label: '유형', type: 'select',
+          options: [
+            { value: 'guild', label: '⚒️ 길드 / 협회' },
+            { value: 'order', label: '🛡️ 기사단 / 교단' },
+            { value: 'company', label: '💰 상회 / 기업' },
+            { value: 'cult', label: '🕯️ 비밀결사 / 컬트' },
+            { value: 'gang', label: '🗡️ 범죄 조직' },
+            { value: 'family', label: '👑 가문 / 혈족' }
+          ]
+        },
+        {
+          key: 'scale', label: '규모', type: 'select',
+          options: [
+            { value: 'cell', label: '🕸️ 소수 정예 (10명 이하)' },
+            { value: 'small', label: '🏠 소규모 (지역 단위)' },
+            { value: 'large', label: '🏰 대규모 (국가 단위)' },
+            { value: 'transnational', label: '🌍 초국가 (세계 곳곳)' }
+          ]
+        },
+        { key: 'leader', label: '수장 · 지도자', type: 'text' },
+        { key: 'base', label: '본거지', type: 'text' }
       ]
     },
     {
-      id: 'purpose',
-      icon: '🎯',
-      title: '목적',
-      cols: 2,
+      id: 'purpose', icon: '🎯', title: '목적', cols: 2,
       fields: [
-        { key: 'purpose.goal', label: '표면적 목적', type: 'long' },
-        { key: 'purpose.real', label: '실제 목적', type: 'long', placeholder: '겉과 속이 다르다면' },
+        { key: 'goal', label: '표면적 목표', type: 'long' },
+        { key: 'ideology', label: '이념 · 신조', type: 'long' },
         { key: 'purpose.origin', label: '설립 경위', type: 'long', span: 2 }
       ]
     },
     {
-      id: 'member',
-      icon: '👥',
-      title: '구성',
-      cols: 2,
+      id: 'member', icon: '👥', title: '구성', cols: 2,
       fields: [
         { key: 'member.ranks', label: '계급 · 직책', type: 'list' },
         { key: 'member.entry', label: '가입 조건 · 의식', type: 'long' },
@@ -342,10 +322,7 @@ const GROUPS: SheetSchema = {
       ]
     },
     {
-      id: 'power',
-      icon: '💰',
-      title: '자원 · 영향력',
-      cols: 2,
+      id: 'power', icon: '💰', title: '자원 · 영향력', cols: 2,
       fields: [
         { key: 'power.money', label: '자금원', type: 'long' },
         { key: 'power.force', label: '무력 · 수단', type: 'long' },
@@ -353,93 +330,77 @@ const GROUPS: SheetSchema = {
       ]
     },
     {
-      id: 'tension',
-      icon: '🔥',
-      title: '갈등',
-      cols: 2,
-      accent: true,
+      id: 'tension', icon: '🔥', title: '갈등', cols: 2, accent: true,
       fields: [
+        { key: 'secrets', label: '🔒 숨겨진 목적', type: 'long', span: 2 },
         { key: 'tension.inner', label: '내부 분열', type: 'long', span: 2, placeholder: '누가 누구를 못 미더워하는가' },
-        { key: 'tension.allies', label: '협력', type: 'list' },
-        { key: 'tension.enemies', label: '적대', type: 'list' }
+        { key: 'ally', label: '우호 세력', type: 'long' },
+        { key: 'enemy', label: '적대 세력', type: 'long' }
       ]
     }
   ]
 };
 
-// ────────────────────────────────────────────
-// 장소
-// ────────────────────────────────────────────
+
 const LOCATIONS: SheetSchema = {
   scope: 'locations',
   icon: '🗺️',
   title: '장소 시트',
   subtitle: '풍경 / 사람 / 내력 / 쓰임',
+  dataRoot: 'root',
   sections: [
     {
-      id: 'basic',
-      icon: '',
-      title: '',
-      cols: 4,
+      id: 'basic', icon: '', title: '', cols: 4,
       fields: [
-        { key: 'basic.kind', label: '종류', type: 'text', placeholder: '숲, 도시, 유적…' },
-        { key: 'basic.region', label: '위치 · 소속', type: 'text' },
-        { key: 'basic.scale', label: '규모', type: 'text' },
-        { key: 'basic.access', label: '접근성', type: 'text', placeholder: '도보 3일, 배로만…' }
+        {
+          key: 'type', label: '유형', type: 'select',
+          options: [
+            { value: 'city', label: '🏙️ 도시 / 마을' },
+            { value: 'dungeon', label: '💀 던전 / 유적' },
+            { value: 'nature', label: '🌲 자연 / 지형' },
+            { value: 'building', label: '🏰 주요 건물' }
+          ]
+        },
+        { key: 'nation', label: '소속 국가', type: 'text' },
+        { key: 'danger', label: '위험도', type: 'text' },
+        { key: 'ruler', label: '지배자 · 영주', type: 'text' }
       ]
     },
     {
-      id: 'scene',
-      icon: '🌄',
-      title: '풍경',
-      cols: 2,
+      id: 'scene', icon: '🌄', title: '풍경', cols: 2,
       fields: [
-        { key: 'scene.look', label: '첫눈에 보이는 것', type: 'long', span: 2 },
+        { key: 'atmosphere', label: '분위기', type: 'long', span: 2 },
+        { key: 'features', label: '명물 · 특징', type: 'long', span: 2 },
         { key: 'scene.sense', label: '소리 · 냄새 · 공기', type: 'long', placeholder: '글로 옮길 때 쓸 감각' },
         { key: 'scene.weather', label: '기후 · 계절', type: 'long' }
       ]
     },
     {
-      id: 'people',
-      icon: '👥',
-      title: '사람',
-      cols: 2,
+      id: 'people', icon: '👥', title: '사람', cols: 2,
       fields: [
         { key: 'people.who', label: '누가 사는가', type: 'long' },
-        { key: 'people.rule', label: '누가 다스리는가', type: 'text' },
+        { key: 'basic.access', label: '접근성', type: 'text', placeholder: '도보 3일, 배로만…' },
         { key: 'people.spots', label: '주요 장소 · 건물', type: 'list', span: 2 }
       ]
     },
     {
-      id: 'history',
-      icon: '📜',
-      title: '내력',
-      cols: 2,
+      id: 'history', icon: '📜', title: '내력', cols: 2,
       fields: [
         { key: 'history.past', label: '과거에 있었던 일', type: 'long' },
         { key: 'history.rumor', label: '떠도는 소문 · 전설', type: 'long' }
       ]
     },
     {
-      id: 'story',
-      icon: '🔥',
-      title: '이야기에서의 쓰임',
-      cols: 2,
-      accent: true,
+      id: 'story', icon: '🔥', title: '이야기에서의 쓰임', cols: 2, accent: true,
       fields: [
+        { key: 'secrets', label: '🔒 숨겨진 것', type: 'long', span: 2 },
         { key: 'story.role', label: '여기서 무슨 일이 벌어지는가', type: 'long', span: 2 },
-        { key: 'story.danger', label: '위험 요소', type: 'list' },
-        { key: 'story.secret', label: '숨겨진 것', type: 'list' }
+        { key: 'story.danger', label: '위험 요소', type: 'list', span: 2 }
       ]
     }
   ]
 };
 
-
-// ────────────────────────────────────────────
-// 아래 5종은 기존 전용 에디터를 흡수한 것 → dataRoot: 'root'
-// (attributes.* 자리를 그대로 써서 기존 입력값이 마이그레이션 없이 보인다)
-// ────────────────────────────────────────────
 
 const EVENTS: SheetSchema = {
   scope: 'events',
@@ -809,4 +770,48 @@ export function ensureShape(root: any, schema: SheetSchema): void {
       }
     }
   }
+}
+
+/**
+ * dataRoot 를 'profile' → 'root' 로 바꾼 시트의 데이터 이사.
+ *
+ * 2026-08-06에 나라·종족·단체·장소 프로필 시트를 먼저 만들면서 attributes.profile.* 에 저장했는데,
+ * 이후 기존 전용 에디터를 흡수하며 저장 자리를 attributes.* 로 옮겼다.
+ * 그 사이에 입력한 내용이 사라지지 않도록 한 번만 복사한다.
+ *
+ * - 옮길 자리가 이미 차 있으면(전용 에디터로 입력해둔 값) 건드리지 않는다 → 기존 데이터 우선
+ * - 타입이 다르면 맞춰서 변환 (배열 ↔ 문자열)
+ * - 끝나면 표시를 남겨 다시 돌지 않게 한다
+ */
+export function migrateProfileToRoot(attrs: any, schema: SheetSchema): boolean {
+  if (!attrs || schema.dataRoot !== 'root') return false;
+  const prof = attrs.profile;
+  if (!prof || typeof prof !== 'object') return false;
+
+  const flag = `_moved_${schema.scope}`;
+  if (prof[flag]) return false;
+
+  let moved = false;
+
+  for (const sec of schema.sections) {
+    for (const f of sec.fields) {
+      const from = getPath(prof, f.key);
+      if (from === undefined || from === null || from === '') continue;
+      if (Array.isArray(from) && from.length === 0) continue;
+
+      const to = getPath(attrs, f.key);
+      const empty = to === undefined || to === null || to === '' || (Array.isArray(to) && to.length === 0);
+      if (!empty) continue; // 전용 에디터로 넣어둔 값이 우선
+
+      if (f.type === 'list') {
+        setPath(attrs, f.key, Array.isArray(from) ? from : String(from).split(/[,\n]/).map((x) => x.trim()).filter(Boolean));
+      } else {
+        setPath(attrs, f.key, Array.isArray(from) ? from.filter(Boolean).join(' / ') : from);
+      }
+      moved = true;
+    }
+  }
+
+  prof[flag] = true;
+  return moved;
 }

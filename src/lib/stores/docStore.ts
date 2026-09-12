@@ -1,6 +1,7 @@
 import type { CategoryId } from '$lib/domain/categories';
 import type { WorldDoc } from '$lib/domain/docs';
 import { loadWorldDocs, saveWorldDocs } from '$lib/services/db';
+import { moveToTrash, takeFromTrash } from '$lib/stores/trashStore';
 import { matchesTextQuery } from '$lib/utils/koreanSearch';
 
 // ✅ [수정] writable 추가
@@ -310,6 +311,10 @@ export function createBlankDoc(category: CategoryId): WorldDoc {
 export function deleteDoc(id: string): void {
   ensureInitialized();
 
+  // 0) 지우기 전에 휴지통으로 (복원 대비)
+  const victim = memoryDocs.find((d) => d.id === id);
+  if (victim) moveToTrash([victim]);
+
   // 1) 해당 문서 제거
   const removedId = id;
   let nextDocs = memoryDocs.filter((d) => d.id !== removedId);
@@ -451,4 +456,26 @@ export async function hydrateCurrentWorldFromSQLite(): Promise<void> {
     worldId,
     count: normalizedDocs.length
   });
+}
+// ◼ 휴지통에서 복원
+export function restoreDocs(ids: string[]): WorldDoc[] {
+  ensureInitialized();
+
+  const docs = takeFromTrash(ids);
+  if (docs.length === 0) return [];
+
+  // 같은 id가 이미 있으면(중복 복원) 건너뛴다
+  const existing = new Set(memoryDocs.map((d) => d.id));
+  const fresh = docs.filter((d) => !existing.has(d.id));
+
+  // 삭제되며 끊긴 @멘션은 되살리지 않는다 — 상대 문서가 아직 있는 것만 유지
+  const aliveIds = new Set([...memoryDocs.map((d) => d.id), ...fresh.map((d) => d.id)]);
+  const cleaned = fresh.map((d) => ({
+    ...d,
+    mentions: (d.mentions ?? []).filter((mid) => aliveIds.has(mid))
+  }));
+
+  updateMemoryAndStore([...memoryDocs, ...cleaned]);
+  saveWorldDocs(memoryDocs);
+  return cleaned;
 }

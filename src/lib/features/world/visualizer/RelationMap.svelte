@@ -168,7 +168,7 @@
   <div bind:this={container} class="w-full h-full"></div>
 
   <!-- 범례 (Legend) -->
-  <div class="absolute bottom-4 left-4 p-3 bg-black/50 backdrop-blur-md rounded-lg border border-white/10 flex flex-wrap gap-3 pointer-events-none">
+  <div class="absolute bottom-4 left-4 p-3 bg-black rounded-lg border border-white/10 flex flex-wrap gap-3 pointer-events-none">
     {#each Object.entries(COLORS) as [cat, theme]}
       {#if cat !== 'default'}
         <div class="flex items-center gap-1.5">

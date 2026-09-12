@@ -2,12 +2,19 @@
 // 소재 태그 3단 구조: 대분류(Group) > 세부분류(Sub) > 태그(Tag)
 // 기존 2단 drawStore 데이터(genesis.draw)를 자동으로 흡수한다.
 import { writable } from 'svelte/store';
+import { saveStatus } from '$lib/stores/saveStatus';
 
 const STORAGE_KEY = 'genesis.tags';
 const OLD_DRAW_KEY = 'genesis.draw'; // 기존 2단 소재뽑기 저장 키
 
-export type Sub = { id: string; name: string; tags: string[]; enabled?: boolean };
-export type Group = { id: string; name: string; subs: Sub[] };
+// 수치 축 — 분야에 한 번만 정의하고, 항목마다 켜고 끈다
+export type Scale = { min: number; max: number; step: number };
+export const DEFAULT_SCALE: Scale = { min: 0, max: 100, step: 1 };
+
+// useScale: 이 항목의 태그에 수치를 붙여 뽑는다 (BIG5 → "개방성 72")
+// all     : 태그를 하나만 고르지 않고 전부 내보낸다 (레이더용)
+export type Sub = { id: string; name: string; tags: string[]; enabled?: boolean; useScale?: boolean; all?: boolean };
+export type Group = { id: string; name: string; subs: Sub[]; scale?: Scale };
 export type TagData = { groups: Group[] };
 
 function uid(p: string) {
@@ -58,7 +65,8 @@ function clone(d: TagData): TagData {
   return {
     groups: d.groups.map((g) => ({
       id: g.id, name: g.name,
-      subs: g.subs.map((s) => ({ id: s.id, name: s.name, enabled: s.enabled !== false, tags: [...s.tags] }))
+      scale: g.scale ? { ...g.scale } : undefined,
+      subs: g.subs.map((s) => ({ id: s.id, name: s.name, enabled: s.enabled !== false, tags: [...s.tags], useScale: s.useScale === true, all: s.all === true }))
     }))
   };
 }
@@ -85,13 +93,26 @@ function migrateOldDraw(): Group | null {
   }
 }
 
+// 구버전(항목별 태그 축 axis: ['상','중','하'])을 수치 축 켜짐으로 옮긴다
+function migrateAxis(d: any): TagData {
+  for (const g of d.groups ?? []) {
+    for (const s of g.subs ?? []) {
+      if (Array.isArray(s.axis)) {
+        if (s.axis.length > 0 && s.useScale === undefined) s.useScale = true;
+        delete s.axis;
+      }
+    }
+  }
+  return d as TagData;
+}
+
 function load(): TagData {
   if (typeof window === 'undefined') return clone(DEFAULT_TAGS);
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed?.groups)) return parsed;
+      if (Array.isArray(parsed?.groups)) return migrateAxis(parsed);
     }
     // 첫 실행: 기본값 + (있으면) 기존 2단 데이터 흡수
     const base = clone(DEFAULT_TAGS);
@@ -109,12 +130,34 @@ function load(): TagData {
 function createStore() {
   const { subscribe, set, update } = writable<TagData>(clone(DEFAULT_TAGS));
 
+  // 자동저장: 변경 즉시 '저장 중…', 400ms 뒤 실제 기록 후 '저장됨'
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let pending: TagData | null = null;
+
+  function flush() {
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (!pending || typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(pending));
+      saveStatus.markSaved();
+    } catch (e) {
+      console.error('[save] 실패:', e);
+      saveStatus.markError();
+    }
+    pending = null;
+  }
+
   function persist(d: TagData) {
-    if (typeof window !== 'undefined') localStorage.setItem(STORAGE_KEY, JSON.stringify(d));
+    if (typeof window === 'undefined') return;
+    pending = d;
+    saveStatus.markDirty();
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(flush, 400);
   }
 
   return {
     subscribe,
+    flush,
     load() { set(load()); },
 
     // ── 대분류 ──
@@ -155,8 +198,48 @@ function createStore() {
         persist(d); return d;
       });
     },
+    // ── 수치 축 ──
+    setScale(gid: string, scale: Scale | null) {
+      update((d) => {
+        const g = d.groups.find((x) => x.id === gid);
+        if (g) {
+          if (!scale) delete g.scale;
+          else {
+            const min = Math.round(scale.min);
+            const max = Math.max(min + 1, Math.round(scale.max));
+            g.scale = { min, max, step: Math.max(1, Math.min(max - min, Math.round(scale.step))) };
+          }
+        }
+        persist(d); return d;
+      });
+    },
+    toggleScale(gid: string, sid: string) {
+      update((d) => {
+        const g = d.groups.find((x) => x.id === gid);
+        const s = g?.subs.find((x) => x.id === sid);
+        if (g && s) { s.useScale = s.useScale !== true; if (s.useScale && !g.scale) g.scale = { ...DEFAULT_SCALE }; }
+        persist(d); return d;
+      });
+    },
+    toggleAll(gid: string, sid: string) {
+      update((d) => { const s = d.groups.find((g) => g.id === gid)?.subs.find((x) => x.id === sid); if (s) s.all = s.all !== true; persist(d); return d; });
+    },
+
     removeTag(gid: string, sid: string, tag: string) {
       update((d) => { const s = d.groups.find((g) => g.id === gid)?.subs.find((x) => x.id === sid); if (s) s.tags = s.tags.filter((t) => t !== tag); persist(d); return d; });
+    },
+
+    // 백업 복원용 — 같은 id는 덮어쓰고 새 것은 붙인다
+    importData(incoming: TagData) {
+      update((d) => {
+        for (const g of incoming.groups ?? []) {
+          const idx = d.groups.findIndex((x) => x.id === g.id || x.name === g.name);
+          if (idx >= 0) d.groups[idx] = g;
+          else d.groups.push(g);
+        }
+        persist(d); return d;
+      });
+      flush();
     },
 
     resetAll() { const d = clone(DEFAULT_TAGS); set(d); persist(d); }
